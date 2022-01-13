@@ -8,6 +8,7 @@ function init_pwd() {
 
 function main() {
   init_pwd
+  pandoc --from markdown --to rst README.md -o README.rst
 }
 
 main
