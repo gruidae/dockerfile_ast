@@ -1,0 +1,2 @@
+bashlex~=0.16
+dockerfile~=3.2.0

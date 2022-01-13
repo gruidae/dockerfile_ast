@@ -6,7 +6,7 @@ from dfile.nodes import Instruction
 
 
 class DockerfileAST:
-    def __init__(self, instructions: List[dockerfile.Command], raw_code: str):
+    def __init__(self, instructions: List[Instruction], raw_code: str):
         self.__instructions = instructions
         self.__raw_code = raw_code
 
@@ -32,9 +32,9 @@ class DockerfileAST:
 
 
 class DockerfileParser:
-    def __init__(self, separate_instuction: bool = False):
+    def __init__(self, separate_instruction: bool = False):
         self.__filename = None
-        self.__separate_instruction = separate_instuction
+        self.__separate_instruction = separate_instruction
 
     @property
     def filename(self):
