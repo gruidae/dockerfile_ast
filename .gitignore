@@ -8,6 +8,9 @@ data
 tmp
 var
 
+# IntelliJ
+.idea
+
 
 ### Language
 ## Go

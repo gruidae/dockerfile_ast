@@ -8,6 +8,7 @@ function init_pwd() {
 
 function main() {
   init_pwd
+  rm -rf $(basename $(pwd)).egg-info/* dist/*
 }
 
 main
