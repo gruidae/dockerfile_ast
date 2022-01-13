@@ -1,6 +1,7 @@
 import dockerfile
+from typing import List
 
-from dfile.utils import InstructionEnum
+from .utils import InstructionEnum
 
 
 class Instruction:
@@ -16,44 +17,44 @@ class Instruction:
         return "{0}(line_num={1}, raw_code={2})".format(self.__class__.__name__, repr(self.__line_num), repr(self.__raw_code))
 
     @staticmethod
-    def generate(cst_instruction: dockerfile.Command):
+    def generate_instructions(cst_instruction: dockerfile.Command, separate_instructions: bool = False) -> List:
         instruction_enum = InstructionEnum.of(cst_instruction.cmd)
         if instruction_enum == InstructionEnum.FROM:
-            return FROMInstruction.generate(cst_instruction)
+            return [FROMInstruction.generate(cst_instruction)]
         elif instruction_enum == InstructionEnum.RUN:
-            return RUNInstruction.generate(cst_instruction)
+            return [RUNInstruction.generate(cst_instruction)]
         elif instruction_enum == InstructionEnum.CMD:
-            return CMDInstruction.generate(cst_instruction)
+            return [CMDInstruction.generate(cst_instruction)]
         elif instruction_enum == InstructionEnum.LABEL:
-            return LABELInstruction.generate(cst_instruction)
+            return [LABELInstruction.generate(cst_instruction)]
         elif instruction_enum == InstructionEnum.MAINTAINER:
-            return LABELInstruction.generate(cst_instruction)
+            return [LABELInstruction.generate(cst_instruction)]
         elif instruction_enum == InstructionEnum.EXPOSE:
-            return EXPOSEInstruction.generate(cst_instruction)
+            return [EXPOSEInstruction.generate(cst_instruction)]
         elif instruction_enum == InstructionEnum.ENV:
-            return ENVInstruction.generate(cst_instruction)
+            return [ENVInstruction.generate(cst_instruction)]
         elif instruction_enum == InstructionEnum.ADD:
-            return ADDInstruction.generate(cst_instruction)
+            return [ADDInstruction.generate(cst_instruction)]
         elif instruction_enum == InstructionEnum.COPY:
-            return COPYInstruction.generate(cst_instruction)
+            return [COPYInstruction.generate(cst_instruction)]
         elif instruction_enum == InstructionEnum.ENTRYPOINT:
-            return ENTRYPOINTInstruction.generate(cst_instruction)
+            return [ENTRYPOINTInstruction.generate(cst_instruction)]
         elif instruction_enum == InstructionEnum.VOLUME:
-            return VOLUMEInstruction.generate(cst_instruction)
+            return [VOLUMEInstruction.generate(cst_instruction)]
         elif instruction_enum == InstructionEnum.USER:
-            return USERInstruction.generate(cst_instruction)
+            return [USERInstruction.generate(cst_instruction)]
         elif instruction_enum == InstructionEnum.ARG:
-            return ARGInstruction.generate(cst_instruction)
+            return [ARGInstruction.generate(cst_instruction)]
         elif instruction_enum == InstructionEnum.ONBUILD:
-            return ONBUILDInstruction.generate(cst_instruction)
+            return [ONBUILDInstruction.generate(cst_instruction)]
         elif instruction_enum == InstructionEnum.STOPSIGNAL:
-            return STOPSIGNALInstruction.generate(cst_instruction)
+            return [STOPSIGNALInstruction.generate(cst_instruction)]
         elif instruction_enum == InstructionEnum.HEALTHCHECK:
-            return HEALTHCHECKInstruction.generate(cst_instruction)
+            return [HEALTHCHECKInstruction.generate(cst_instruction)]
         elif instruction_enum == InstructionEnum.SHELL:
-            return SHELLInstruction.generate(cst_instruction)
+            return [SHELLInstruction.generate(cst_instruction)]
         else:
-            return Instruction(cst_instruction.start_line, cst_instruction.original)
+            return [Instruction(cst_instruction.start_line, cst_instruction.original)]
 
 
 class FROMInstruction(Instruction):

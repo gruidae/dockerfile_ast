@@ -2,7 +2,7 @@ from typing import Tuple, List
 
 import dockerfile
 
-from dfile.nodes import Instruction
+from dockerfile_items.nodes import Instruction
 
 
 class DockerfileAST:
@@ -23,18 +23,30 @@ class DockerfileAST:
         return self.__raw_code
 
     @staticmethod
-    def generate(cst: Tuple[dockerfile.Command], raw_code: str):
+    def generate(cst: Tuple[dockerfile.Command], raw_code: str, separate_instructions: bool = False):
         instructions: List[Instruction] = list()
         for cst_instruction in cst:
             # print(cst_instruction)
-            instructions.append(Instruction.generate(cst_instruction))
+            tmp_instructions: List[Instruction] = Instruction.generate_instructions(
+                cst_instruction, separate_instructions=separate_instructions
+            )
+            instructions.extend(tmp_instructions)
         return DockerfileAST(instructions, raw_code)
 
 
 class DockerfileParser:
-    def __init__(self, separate_instruction: bool = False):
+    def __init__(
+            self,
+            parse_level: int = 1,
+            separate_instructions: bool = False,
+            separate_run_instructions: bool = False
+    ):
         self.__filename = None
-        self.__separate_instruction = separate_instruction
+        if parse_level < 1 or 1 < parse_level:
+            raise ValueError("Illegal parse_level value (> 0): {0}".format(str(parse_level)))
+        self.__parse_level = parse_level
+        self.__separate_instructions = separate_instructions
+        self.__separate_run_instructions = separate_run_instructions
 
     @property
     def filename(self):
@@ -43,14 +55,14 @@ class DockerfileParser:
     def parse(self, raw_code: str) -> DockerfileAST:
         self.__filename = None
         cst: Tuple[dockerfile.Command] = dockerfile.parse_string(raw_code)
-        return DockerfileAST.generate(cst, raw_code)
+        return DockerfileAST.generate(cst, raw_code, separate_instructions=self.__separate_instructions)
 
     def parse_file(self, filename: str) -> DockerfileAST:
         self.__filename = filename
         with open(filename) as fp:
             raw_code = fp.read()
         cst: Tuple[dockerfile.Command] = dockerfile.parse_file(filename)
-        return DockerfileAST.generate(cst, raw_code)
+        return DockerfileAST.generate(cst, raw_code, separate_instructions=self.__separate_instructions)
 
 
 class DockerfileASTVisitor:
