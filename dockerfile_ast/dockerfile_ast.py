@@ -2,7 +2,7 @@ from typing import Tuple, List
 
 import dockerfile
 
-from dockerfile_items.nodes import Instruction
+from dockerfile_ast.dockerfile_items.nodes import Instruction
 
 
 class DockerfileAST:
