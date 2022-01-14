@@ -1,6 +1,8 @@
+import re
 from typing import Tuple, List
 
 import dockerfile
+from dockerfile import GoParseError
 
 from dockerfile_ast import DockerfileAST
 from dockerfile_ast.dockerfile_items.nodes import ADDInstruction
@@ -25,6 +27,10 @@ from dockerfile_ast.dockerfile_items.utils import InstructionEnum
 
 
 class DockerfileParser:
+    _CHAINING_ONBUILD_ERROR_MESSAGE = "Chaining ONBUILD instructions using ONBUILD ONBUILD isn’t allowed."
+    _PARSE_ERROR_FORMAT = "{0}: {1}"
+    _PARSE_ERROR_FORMAT_FILENAME = "{0}: {1}: {2}"
+
     def __init__(
             self,
             ignore_label_instructions: bool = False,
@@ -39,18 +45,18 @@ class DockerfileParser:
         self.__separate_instructions: bool = separate_instructions
         self.__separate_run_instructions: bool = separate_run_instructions
 
+        self.__filename: str = None
         self.__raw_code: str = None
         self.__cst: Tuple[dockerfile.Command] = None
 
-    def __repr__(self):
-        repr_format = ""
-
     def parse(self, raw_code: str) -> DockerfileAST:
+        self.__filename = None
         self.__raw_code = raw_code
         self.__cst = dockerfile.parse_string(raw_code)
         return self.__parse_instructions()
 
     def parse_file(self, filename: str) -> DockerfileAST:
+        self.__filename = filename
         with open(filename) as fp:
             self.__raw_code = fp.read()
         self.__cst = dockerfile.parse_file(filename)
@@ -64,73 +70,74 @@ class DockerfileParser:
                 instructions.extend(tmp)
         return DockerfileAST(instructions, self.__raw_code)
 
-    def __parse_instruction(self, cst_instruction: dockerfile.Command) -> List[Instruction]:
+    def __parse_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int = 0) -> List[Instruction]:
         instruction_enum = InstructionEnum.of(cst_instruction.cmd)
         if instruction_enum == InstructionEnum.FROM:
-            # FROM Instruction
-            return self.__parse_from_instruction(cst_instruction)
+            # FROM instruction
+            return self.__parse_from_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.RUN:
-            # RUN Instruction
-            return self.__parse_run_instruction(cst_instruction)
+            # RUN instruction
+            return self.__parse_run_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.CMD:
-            # CMD Instruction
-            return self.__parse_cmd_instruction(cst_instruction)
+            # CMD instruction
+            return self.__parse_cmd_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.LABEL:
-            # LABEL Instruction
+            # LABEL instruction
             if self.__ignore_label_instructions:
-                # Ignore this instruction if you do not need LABEL Instructions
+                # Ignore this instruction if you do not need LABEL instructions
                 return None
-            return self.__parse_label_instruction(cst_instruction)
+            return self.__parse_label_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.MAINTAINER:
-            # MAINTAINER Instruction (deprecated)
+            # MAINTAINER instruction (deprecated)
             if self.__ignore_label_instructions:
-                # Ignore this instruction if you do not need MAINTAINER Instructions
+                # Ignore this instruction if you do not need MAINTAINER instructions
                 return None
-            return self.__parse_maintainer_instruction(cst_instruction)
+            return self.__parse_maintainer_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.EXPOSE:
-            # EXPOSE Instruction
-            return self.__parse_expose_instruction(cst_instruction)
+            # EXPOSE instruction
+            return self.__parse_expose_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.ENV:
-            # ENV Instruction
-            return self.__parse_env_instruction(cst_instruction)
+            # ENV instruction
+            return self.__parse_env_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.ADD:
-            # ADD Instruction
-            return self.__parse_add_instruction(cst_instruction)
+            # ADD instruction
+            return self.__parse_add_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.COPY:
-            # COPY Instruction
-            return self.__parse_add_instruction(cst_instruction)
+            # COPY instruction
+            return self.__parse_add_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.ENTRYPOINT:
-            # ENTRYPOINT Instruction
-            return self.__parse_expose_instruction(cst_instruction)
+            # ENTRYPOINT instruction
+            return self.__parse_expose_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.VOLUME:
-            # VOLUME Instruction
-            return self.__parse_volume_instruction(cst_instruction)
+            # VOLUME instruction
+            return self.__parse_volume_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.USER:
-            # USER Instruction
-            return self.__parse_user_instruction(cst_instruction)
+            # USER instruction
+            return self.__parse_user_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.WORKDIR:
-            # WORKDIR Instruction
-            return self.__parse_workdir_instruction(cst_instruction)
+            # WORKDIR instruction
+            return self.__parse_workdir_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.ARG:
-            # ARG Instruction
-            return self.__parse_arg_instruction(cst_instruction)
+            # ARG instruction
+            return self.__parse_arg_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.ONBUILD:
-            # ONBUILD Instruction
-            return self.__parse_onbuild_instruction(cst_instruction)
+            # ONBUILD instruction
+            return self.__parse_onbuild_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.STOPSIGNAL:
-            # STOPSIGNAL Instruction
-            return self.__parse_stopsignal_instruction(cst_instruction)
+            # STOPSIGNAL instruction
+            return self.__parse_stopsignal_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.HEALTHCHECK:
-            # HEALTHCHECK Instruction
-            return self.__parse_healthcheck_instruction(cst_instruction)
+            # HEALTHCHECK instruction
+            return self.__parse_healthcheck_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.SHELL:
-            # SHELL Instruction
-            return self.__parse_shell_instruction(cst_instruction)
+            # SHELL instruction
+            return self.__parse_shell_instruction(cst_instruction, line_num_offset)
         else:
-            return [Instruction(cst_instruction.start_line, cst_instruction.original)]
+            return [Instruction(cst_instruction.start_line + line_num_offset, cst_instruction.original)]
 
-    def __parse_from_instruction(self, cst_instruction: dockerfile.Command) -> List[FROMInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_from_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[FROMInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """
@@ -139,10 +146,11 @@ class DockerfileParser:
         FROM [--platform=<platform>] <image>[@<digest>] [AS <name>]
         """
 
-        return [FROMInstruction(line_num, raw_code)]
+        return [FROMInstruction(line_num + line_num_offset, raw_code)]
 
-    def __parse_run_instruction(self, cst_instruction: dockerfile.Command) -> List[RUNInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_run_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[RUNInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """
@@ -152,8 +160,9 @@ class DockerfileParser:
 
         return [RUNInstruction(line_num, raw_code)]
 
-    def __parse_cmd_instruction(self, cst_instruction: dockerfile.Command) -> List[CMDInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_cmd_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[CMDInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """
@@ -164,8 +173,9 @@ class DockerfileParser:
 
         return [CMDInstruction(line_num, raw_code)]
 
-    def __parse_label_instruction(self, cst_instruction: dockerfile.Command) -> List[LABELInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_label_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[LABELInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """
@@ -174,8 +184,9 @@ class DockerfileParser:
 
         return [LABELInstruction(line_num, raw_code)]
 
-    def __parse_maintainer_instruction(self, cst_instruction: dockerfile.Command) -> List[LABELInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_maintainer_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[LABELInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """
@@ -185,8 +196,9 @@ class DockerfileParser:
 
         return [LABELInstruction(line_num, raw_code)]
 
-    def __parse_expose_instruction(self, cst_instruction: dockerfile.Command) -> List[EXPOSEInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_expose_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[EXPOSEInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """
@@ -195,8 +207,9 @@ class DockerfileParser:
 
         return [EXPOSEInstruction(line_num, raw_code)]
 
-    def __parse_env_instruction(self, cst_instruction: dockerfile.Command) -> List[ENVInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_env_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[ENVInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """
@@ -206,8 +219,9 @@ class DockerfileParser:
 
         return [ENVInstruction(line_num, raw_code)]
 
-    def __parse_add_instruction(self, cst_instruction: dockerfile.Command) -> List[ADDInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_add_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[ADDInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """
@@ -217,8 +231,9 @@ class DockerfileParser:
 
         return [ADDInstruction(line_num, raw_code)]
 
-    def __parse_copy_instruction(self, cst_instruction: dockerfile.Command) -> List[COPYInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_copy_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[COPYInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """
@@ -228,8 +243,9 @@ class DockerfileParser:
 
         return [COPYInstruction(line_num, raw_code)]
 
-    def __parse_entrypoint_instruction(self, cst_instruction: dockerfile.Command) -> List[ENTRYPOINTInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_entrypoint_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[ENTRYPOINTInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """
@@ -239,8 +255,9 @@ class DockerfileParser:
 
         return [ENTRYPOINTInstruction(line_num, raw_code)]
 
-    def __parse_volume_instruction(self, cst_instruction: dockerfile.Command) -> List[VOLUMEInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_volume_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[VOLUMEInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """
@@ -250,8 +267,9 @@ class DockerfileParser:
 
         return [VOLUMEInstruction(line_num, raw_code)]
 
-    def __parse_user_instruction(self, cst_instruction: dockerfile.Command) -> List[USERInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_user_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[USERInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """
@@ -261,8 +279,9 @@ class DockerfileParser:
 
         return [USERInstruction(line_num, raw_code)]
 
-    def __parse_workdir_instruction(self, cst_instruction: dockerfile.Command) -> List[WORKDIRInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_workdir_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[WORKDIRInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """
@@ -271,8 +290,9 @@ class DockerfileParser:
 
         return [WORKDIRInstruction(line_num, raw_code)]
 
-    def __parse_arg_instruction(self, cst_instruction: dockerfile.Command) -> List[ARGInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_arg_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[ARGInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """
@@ -281,18 +301,34 @@ class DockerfileParser:
 
         return [ARGInstruction(line_num, raw_code)]
 
-    def __parse_onbuild_instruction(self, cst_instruction: dockerfile.Command) -> List[ONBUILDInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_onbuild_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[ONBUILDInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
-        """
-        ONBUILD <INSTRUCTION>
-        """
+        if InstructionEnum.of(cst_instruction.sub_cmd) == InstructionEnum.ONBUILD:
+            # Chaining ONBUILD Error
+            if self.__filename is None:
+                error_message = self._PARSE_ERROR_FORMAT.format(
+                    line_num, self._CHAINING_ONBUILD_ERROR_MESSAGE
+                )
+                raise GoParseError(error_message)
+            else:
+                error_message = self._PARSE_ERROR_FORMAT_FILENAME.format(
+                    self.__filename, line_num, self._CHAINING_ONBUILD_ERROR_MESSAGE
+                )
+                raise GoParseError(error_message)
 
-        return [ONBUILDInstruction(line_num, raw_code)]
+        param = re.sub(r"^[Oo][Nn][Bb][Uu][Ii][Ll][Dd]\s+", "", raw_code)
 
-    def __parse_stopsignal_instruction(self, cst_instruction: dockerfile.Command) -> List[STOPSIGNALInstruction]:
-        line_num: int = cst_instruction.start_line
+        # generate CST of an instruction this ONBUILD instruction has as a parameter
+        param_cst_instruction: dockerfile.Command = dockerfile.parse_string(param)[0]
+        param_instructions: List[Instruction] = self.__parse_instruction(param_cst_instruction, line_num - 1)
+        return [ONBUILDInstruction(param_instructions, line_num, raw_code)]
+
+    def __parse_stopsignal_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[STOPSIGNALInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """
@@ -301,8 +337,9 @@ class DockerfileParser:
 
         return [STOPSIGNALInstruction(line_num, raw_code)]
 
-    def __parse_healthcheck_instruction(self, cst_instruction: dockerfile.Command) -> List[HEALTHCHECKInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_healthcheck_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[HEALTHCHECKInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """
@@ -312,8 +349,9 @@ class DockerfileParser:
 
         return [HEALTHCHECKInstruction(line_num, raw_code)]
 
-    def __parse_shell_instruction(self, cst_instruction: dockerfile.Command) -> List[SHELLInstruction]:
-        line_num: int = cst_instruction.start_line
+    def __parse_shell_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
+            -> List[SHELLInstruction]:
+        line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
         """

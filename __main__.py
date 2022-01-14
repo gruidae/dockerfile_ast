@@ -6,6 +6,16 @@ from dockerfile import GoIOError, GoParseError
 from dockerfile_ast import DockerfileAST, DockerfileASTVisitor, DockerfileParser
 
 
+_TEST_RAW_CODE = """FROM ubuntu
+ONBUILD RUN set -eux \\
+  && apt-get update \\
+  && apt-get install -y --no-install-recommends httpd \\
+  && rm -rf /var/lib/apt/lists/*
+EXPOSE 80
+ENTRYPOINT ["httpd"]
+"""
+
+
 def _init_logger() -> logging.Logger:
     logging_logger = logging.getLogger(__name__)
     # ログで出力するレベルを指定
@@ -18,37 +28,41 @@ def _init_logger() -> logging.Logger:
     return logging_logger
 
 
-def _parse_file(filename: str, logging_logger: logging.Logger) -> DockerfileAST:
-    dfile_ast = None
-    try:
-        dockerfile_parser = DockerfileParser()
-        dfile_ast = dockerfile_parser.parse_file(filename)
-    except GoParseError as e:
-        if hasattr(e, "message"):
-            logging_logger.error(e.message)
-        else:
-            logging_logger.error(e)
-    except GoIOError as e:
-        if hasattr(e, "message"):
-            logging_logger.error(e.message)
-        else:
-            logging_logger.error(e)
-    except IOError as e:
-        if hasattr(e, "message"):
-            logging_logger.error(e.message)
-        else:
-            logging_logger.error(e)
-    except ValueError as e:
-        if hasattr(e, "message"):
-            logging_logger.error(e.message)
-        else:
-            logging_logger.error(e)
-    return dfile_ast
+def _parse(raw_code: str) -> DockerfileAST:
+    dockerfile_parser = DockerfileParser()
+    return dockerfile_parser.parse(raw_code)
+
+
+def _parse_file(filename: str) -> DockerfileAST:
+    dockerfile_parser = DockerfileParser()
+    return dockerfile_parser.parse_file(filename)
 
 
 if __name__ == "__main__":
-    filename = sys.argv[1]
+    # filename = sys.argv[1]
     logger: logging.Logger = _init_logger()
-    dfile_ast = _parse_file(filename, logger)
-    visitor: DockerfileASTVisitor = DockerfileASTVisitor(dfile_ast)
-    visitor.visit()
+    try:
+        dfile_ast: DockerfileAST = _parse(_TEST_RAW_CODE)
+        # dfile_ast: DockerfileAST = _parse_file(filename)
+        visitor: DockerfileASTVisitor = DockerfileASTVisitor(dfile_ast)
+        visitor.visit()
+    except GoParseError as e:
+        if hasattr(e, "message"):
+            logger.error(e.message)
+        else:
+            logger.error(e)
+    except GoIOError as e:
+        if hasattr(e, "message"):
+            logger.error(e.message)
+        else:
+            logger.error(e)
+    except IOError as e:
+        if hasattr(e, "message"):
+            logger.error(e.message)
+        else:
+            logger.error(e)
+    except ValueError as e:
+        if hasattr(e, "message"):
+            logger.error(e.message)
+        else:
+            logger.error(e)
