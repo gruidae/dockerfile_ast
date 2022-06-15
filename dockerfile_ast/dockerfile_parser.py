@@ -27,18 +27,19 @@ from dockerfile_ast.dockerfile_items.utils import InstructionEnum
 
 
 class DockerfileParser:
-    _CHAINING_ONBUILD_ERROR_MESSAGE = "Chaining ONBUILD instructions using ONBUILD ONBUILD isn’t allowed."
-    _PARSE_ERROR_FORMAT = "{0}: {1}"
-    _PARSE_ERROR_FORMAT_FILENAME = "{0}: {1}: {2}"
+    __CHAINING_ONBUILD_ERROR_MESSAGE = "Chaining ONBUILD instructions using ONBUILD ONBUILD isn’t allowed."
+    __HEALTHCHECK_SUB_COMMAND_ERROR_MESSAGE = "Sub command of HEALTHCHECK instruction is only \"None\" or \"CMD\"."
+    __PARSE_ERROR_FORMAT = "{0}: {1}"
+    __PARSE_ERROR_FORMAT_FILENAME = "{0}: {1}: {2}"
 
     def __init__(
             self,
-            ignore_label_instructions: bool = False,
+            exclude_label_instructions: bool = False,
             parse_level: int = 1,
             separate_instructions: bool = False,
             separate_run_instructions: bool = False
     ):
-        self.__ignore_label_instructions: bool = ignore_label_instructions
+        self.__exclude_label_instructions: bool = exclude_label_instructions
         if parse_level < 1 or 1 < parse_level:
             raise ValueError("Illegal parse_level value (> 0): {0}".format(str(parse_level)))
         self.__parse_level: int = parse_level
@@ -67,6 +68,7 @@ class DockerfileParser:
         for cst_instruction in self.__cst:
             tmp: List[Instruction] = self.__parse_instruction(cst_instruction)
             if tmp is not None:
+                # Skip instructions not subject to parse
                 instructions.extend(tmp)
         return DockerfileAST(instructions, self.__raw_code)
 
@@ -83,14 +85,14 @@ class DockerfileParser:
             return self.__parse_cmd_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.LABEL:
             # LABEL instruction
-            if self.__ignore_label_instructions:
-                # Ignore this instruction if you do not need LABEL instructions
+            if self.__exclude_label_instructions:
+                # Skip parsing this instruction if you do not need LABEL instructions
                 return None
             return self.__parse_label_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.MAINTAINER:
             # MAINTAINER instruction (deprecated)
-            if self.__ignore_label_instructions:
-                # Ignore this instruction if you do not need MAINTAINER instructions
+            if self.__exclude_label_instructions:
+                # Skip parsing this instruction if you do not need MAINTAINER instructions
                 return None
             return self.__parse_maintainer_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.EXPOSE:
@@ -307,18 +309,19 @@ class DockerfileParser:
         raw_code: str = cst_instruction.original
 
         if InstructionEnum.of(cst_instruction.sub_cmd) == InstructionEnum.ONBUILD:
-            # Chaining ONBUILD Error
+            # Chaining ONBUILD error
             if self.__filename is None:
-                error_message = self._PARSE_ERROR_FORMAT.format(
-                    line_num, self._CHAINING_ONBUILD_ERROR_MESSAGE
+                error_message = self.__PARSE_ERROR_FORMAT.format(
+                    line_num, self.__CHAINING_ONBUILD_ERROR_MESSAGE
                 )
                 raise GoParseError(error_message)
             else:
-                error_message = self._PARSE_ERROR_FORMAT_FILENAME.format(
-                    self.__filename, line_num, self._CHAINING_ONBUILD_ERROR_MESSAGE
+                error_message = self.__PARSE_ERROR_FORMAT_FILENAME.format(
+                    self.__filename, line_num, self.__CHAINING_ONBUILD_ERROR_MESSAGE
                 )
                 raise GoParseError(error_message)
 
+        # Reformat parameters on ONBUILD instruction
         param = re.sub(r"^[Oo][Nn][Bb][Uu][Ii][Ll][Dd]\s+", "", raw_code)
 
         # generate CST of an instruction this ONBUILD instruction has as a parameter
@@ -343,11 +346,49 @@ class DockerfileParser:
         raw_code: str = cst_instruction.original
 
         """
-        HEALTHCHECK [OPTIONS] CMD command
-        HEALTHCHECK NONE
+        TODO: parse options
+            --interval=DURATION (default: 30s)
+            --timeout=DURATION (default: 30s)
+            --start-period=DURATION (default: 0s)
+            --retries=N (default: 3)
         """
 
-        return [HEALTHCHECKInstruction(line_num, raw_code)]
+        try:
+            if InstructionEnum.of(cst_instruction.sub_cmd) != InstructionEnum.CMD:
+                # Sub command of HEALTHCHECK error
+                if self.__filename is None:
+                    error_message = self.__PARSE_ERROR_FORMAT.format(
+                        line_num, self.__HEALTHCHECK_SUB_COMMAND_ERROR_MESSAGE
+                    )
+                    raise GoParseError(error_message)
+                else:
+                    error_message = self.__PARSE_ERROR_FORMAT_FILENAME.format(
+                        self.__filename, line_num, self.__HEALTHCHECK_SUB_COMMAND_ERROR_MESSAGE
+                    )
+                    raise GoParseError(error_message)
+        except ValueError:
+            if not re.match(cst_instruction.sub_cmd, r"[Nn][Oo][Nn][Ee]"):
+                if self.__filename is None:
+                    error_message = self.__PARSE_ERROR_FORMAT.format(
+                        line_num, self.__HEALTHCHECK_SUB_COMMAND_ERROR_MESSAGE
+                    )
+                    raise GoParseError(error_message)
+                else:
+                    error_message = self.__PARSE_ERROR_FORMAT_FILENAME.format(
+                        self.__filename, line_num, self.__HEALTHCHECK_SUB_COMMAND_ERROR_MESSAGE
+                    )
+                    raise GoParseError(error_message)
+
+        # Reformat parameters on HEALTHCHECK instruction
+        param = re.sub(r"^[Hh][Ee][Aa][Ll][Tt][Hh][Cc][Hh][Ee][Cc][Kk]\s+", "", raw_code)
+
+        # generate CST of an instruction this HEALTHCHECK instruction has as a parameter
+        if re.match(param, r"[Nn][Oo][Nn][Ee]"):
+            param_instructions = None
+        else:
+            param_cst_instruction: dockerfile.Command = dockerfile.parse_string(param)[0]
+            param_instructions: List[Instruction] = self.__parse_instruction(param_cst_instruction, line_num - 1)
+        return [HEALTHCHECKInstruction(param_instructions, line_num, raw_code)]
 
     def __parse_shell_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[SHELLInstruction]:

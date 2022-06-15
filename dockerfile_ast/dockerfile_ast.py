@@ -17,11 +17,11 @@ class DockerfileAST:
         return self.__REPR_FORMAT.format(self_class_name, repr_instructions, repr_raw_code)
 
     @property
-    def instructions(self):
+    def instructions(self) -> List[Instruction]:
         return [instruction for instruction in self.__instructions]
 
     @property
-    def raw_code(self):
+    def raw_code(self) -> str:
         return self.__raw_code
 
 
@@ -30,13 +30,12 @@ class DockerfileASTVisitor:
         self.__ast = dockerfile_ast
 
     def visit(self) -> bool:
-        can_visit: bool = False
         for instruction in self.__ast.instructions:
             can_visit = self.__visit_instruction(instruction)
             if not can_visit:
                 return can_visit
         return can_visit
 
-    def __visit_instruction(self, instruction: Instruction):
+    def __visit_instruction(self, instruction: Instruction) -> bool:
         print(instruction)
         return True
