@@ -1,6 +1,6 @@
 from typing import List
 
-from .shell_items.nodes import BashValueNode
+from .bash_items.nodes import BashValueNode
 
 
 class DockerfileNode:

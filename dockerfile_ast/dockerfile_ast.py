@@ -18,7 +18,7 @@ class DockerfileAST:
 
     @property
     def instructions(self) -> List[Instruction]:
-        return [instruction for instruction in self.__instructions]
+        return self.__instructions
 
     @property
     def raw_code(self) -> str:

@@ -1,10 +1,12 @@
 import re
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import dockerfile
 from dockerfile import GoParseError
 
 from dockerfile_ast import DockerfileAST
+from dockerfile_ast.dockerfile_items.bash_items.nodes import EnvironmentVariable
+from dockerfile_ast.dockerfile_items.bash_items.nodes import TemporaryVariable
 from dockerfile_ast.dockerfile_items.nodes import ADDInstruction
 from dockerfile_ast.dockerfile_items.nodes import ARGInstruction
 from dockerfile_ast.dockerfile_items.nodes import CMDInstruction
@@ -50,10 +52,15 @@ class DockerfileParser:
         self.__raw_code: str = None
         self.__cst: Tuple[dockerfile.Command] = None
 
+        self.__arg_variables: Dict[str, TemporaryVariable] = None  # ARG変数の辞書型（変数名がキー）
+        self.__env_variables: Dict[str, EnvironmentVariable] = None  # ENV変数の辞書型（変数名がキー）
+
     def parse(self, raw_code: str) -> DockerfileAST:
         self.__filename = None
         self.__raw_code = raw_code
         self.__cst = dockerfile.parse_string(raw_code)
+        self.__arg_variables: List[TemporaryVariable] = list()
+        self.__env_variables: List[EnvironmentVariable] = list()
         return self.__parse_instructions()
 
     def parse_file(self, filename: str) -> DockerfileAST:
@@ -61,6 +68,8 @@ class DockerfileParser:
         with open(filename) as fp:
             self.__raw_code = fp.read()
         self.__cst = dockerfile.parse_file(filename)
+        self.__arg_variables = dict()
+        self.__env_variables = dict()
         return self.__parse_instructions()
 
     def __parse_instructions(self) -> DockerfileAST:

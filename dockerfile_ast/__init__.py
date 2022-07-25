@@ -1,3 +1,4 @@
+from .bash_parser import *
 from .dockerfile_ast import *
 from .dockerfile_parser import *
 
