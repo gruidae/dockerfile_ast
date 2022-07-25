@@ -11,6 +11,9 @@ from dockerfile_ast.dockerfile_items.bash_items.nodes import TemporaryVariable
 
 
 class BashParser:
+    """
+    A parser of Bash Syntax.
+    """
     def __init__(self):
         pass
 
@@ -33,6 +36,8 @@ class BashParser:
             arg_variables: Dict[str, TemporaryVariable],
             env_variables: Dict[str, EnvironmentVariable]
     ) -> BashValueNode:
+        if token is None:
+            return None
         # CommandNode()ではないため，直接WordNodeへとVisit
         bashlex_token: bashlex.ast.node = bashlex.parse(token)[0].parts[0]
         bashlex_variables: List[bashlex.ast.node] = bashlex_token.parts

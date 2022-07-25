@@ -4,7 +4,7 @@ import sys
 
 from dockerfile import GoIOError, GoParseError
 
-from dockerfile_ast import BashParser, DockerfileAST, DockerfileASTVisitor, DockerfileParser
+from dockerfile_ast import DockerfileAST, DockerfileASTVisitor, DockerfileParser
 
 
 _TEST_RAW_CODE = """FROM ubuntu
@@ -30,17 +30,17 @@ def _init_logger() -> logging.Logger:
 
 
 def _init_argument_parser() -> argparse.ArgumentParser:
-    argparse_argument_parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Dockerfile AST Parser")
-    argparse_argument_parser.add_argument("filename", help="Dockerfile name you would like to parse")
-    argparse_argument_parser.add_argument("-o", "--output", help="Filename of DockerfileAST", metavar="filename")
-    argparse_argument_parser.add_argument("--exclude-label-instructions", help="", action="store_true")
-    argparse_argument_parser.add_argument(
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Dockerfile AST Parser")
+    parser.add_argument("filename", help="Dockerfile name you would like to parse")
+    parser.add_argument("-o", "--output", help="Filename of DockerfileAST", metavar="filename")
+    parser.add_argument("--exclude-label-instructions", help="", action="store_true")
+    parser.add_argument(
         "--parse-level", help="Parse level (1: Dockerfile Instruction, 2: Shell Script, 3: Shell Command)",
         default=1, choices=[1, 2, 3], type=int
     )
-    argparse_argument_parser.add_argument("--separate-instructions", help="", action="store_true")
-    argparse_argument_parser.add_argument("--separate_run_instructions", help="", action="store_true")
-    return argparse_argument_parser
+    parser.add_argument("--separate-instructions", help="", action="store_true")
+    parser.add_argument("--separate_run_instructions", help="", action="store_true")
+    return parser
 
 
 def _parse(
@@ -83,8 +83,9 @@ if __name__ == "__main__":
         separate_run_instructions = args.separate_run_instructions
 
         # parse Dockerfile
-        # dfile_ast: DockerfileAST = _parse(_TEST_RAW_CODE, , exclude_label_instructions, parse_level, separate_instructions, separate_run_instructions)
-        dfile_ast: DockerfileAST = _parse_file(filename, exclude_label_instructions, parse_level, separate_instructions, separate_run_instructions)
+        dfile_ast: DockerfileAST = _parse_file(
+            filename, exclude_label_instructions, parse_level, separate_instructions, separate_run_instructions
+        )
         visitor: DockerfileASTVisitor = DockerfileASTVisitor(dfile_ast)
         visitor.visit()
     except GoParseError as e:

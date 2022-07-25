@@ -5,6 +5,8 @@ import dockerfile
 from dockerfile import GoParseError
 
 from dockerfile_ast import DockerfileAST
+from dockerfile_ast.bash_parser import BashParser
+from dockerfile_ast.dockerfile_items.bash_items.nodes import BashValueNode
 from dockerfile_ast.dockerfile_items.bash_items.nodes import EnvironmentVariable
 from dockerfile_ast.dockerfile_items.bash_items.nodes import TemporaryVariable
 from dockerfile_ast.dockerfile_items.nodes import ADDInstruction
@@ -29,7 +31,9 @@ from dockerfile_ast.dockerfile_items.utils import InstructionEnum
 
 
 class DockerfileParser:
-    __CHAINING_ONBUILD_ERROR_MESSAGE = "Chaining ONBUILD instructions using ONBUILD ONBUILD isn’t allowed."
+    """
+    A parser of Dockerfile.
+    """
     __HEALTHCHECK_SUB_COMMAND_ERROR_MESSAGE = "Sub command of HEALTHCHECK instruction is only \"None\" or \"CMD\"."
     __PARSE_ERROR_FORMAT = "{0}: {1}"
     __PARSE_ERROR_FORMAT_FILENAME = "{0}: {1}: {2}"
@@ -76,9 +80,10 @@ class DockerfileParser:
         instructions: List[Instruction] = list()
         for cst_instruction in self.__cst:
             tmp: List[Instruction] = self.__parse_instruction(cst_instruction)
-            if tmp is not None:
+            if tmp is None:
                 # Skip instructions not subject to parse
-                instructions.extend(tmp)
+                continue
+            instructions.extend(tmp)
         return DockerfileAST(instructions, self.__raw_code)
 
     def __parse_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int = 0) -> List[Instruction]:
@@ -95,7 +100,7 @@ class DockerfileParser:
         elif instruction_enum == InstructionEnum.LABEL:
             # LABEL instruction
             if self.__exclude_label_instructions:
-                # Skip parsing this instruction if you do not need LABEL instructions
+                # Skip parsing this instruction if you do not need LABEL Instructions
                 return None
             return self.__parse_label_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.MAINTAINER:
@@ -306,11 +311,35 @@ class DockerfileParser:
         line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
-        """
-        ARG <name>[=<default value>]
-        """
+        # '='がある場合とない場合で処理を分岐
+        if len(cst_instruction.value) < 2:
+            split_tokens = cst_instruction.value[0].split("=")
+            variable_name = split_tokens[0]
+            if len(split_tokens) > 0:
+                # '='がある場合
+                str_value = split_tokens[1]
+            else:
+                # 変数名のみ定義されている場合
+                str_value = None
+        else:
+            variable_name = cst_instruction.value[0]
+            str_value = cst_instruction.value[1]
 
-        return [ARGInstruction(line_num, raw_code)]
+        if variable_name in self.__env_variables.keys():
+            error_message = self.__PARSE_ERROR_FORMAT.format(
+                line_num,
+            )
+            raise GoParseError(error_message)
+        if variable_name in self.__arg_variables.keys():
+            variable: TemporaryVariable = self.__arg_variables[variable_name]
+        else:
+            variable: TemporaryVariable = TemporaryVariable(variable_name)
+            # 新たにARG変数として追加
+            self.__arg_variables[variable_name] = variable
+        value: BashValueNode = BashParser.simple_parse_bash_concat(
+            str_value, self.__arg_variables, self.__env_variables
+        )
+        return [ARGInstruction(variable, value, line_num, raw_code)]
 
     def __parse_onbuild_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[ONBUILDInstruction]:
@@ -319,15 +348,13 @@ class DockerfileParser:
 
         if InstructionEnum.of(cst_instruction.sub_cmd) == InstructionEnum.ONBUILD:
             # Chaining ONBUILD error
+            CHAINING_ONBUILD_ERROR_MESSAGE = "Chaining ONBUILD instructions using ONBUILD ONBUILD isn’t allowed."
             if self.__filename is None:
-                error_message = self.__PARSE_ERROR_FORMAT.format(
-                    line_num, self.__CHAINING_ONBUILD_ERROR_MESSAGE
-                )
+                error_message = self.__PARSE_ERROR_FORMAT.format(line_num, CHAINING_ONBUILD_ERROR_MESSAGE)
                 raise GoParseError(error_message)
             else:
                 error_message = self.__PARSE_ERROR_FORMAT_FILENAME.format(
-                    self.__filename, line_num, self.__CHAINING_ONBUILD_ERROR_MESSAGE
-                )
+                    self.__filename, line_num, CHAINING_ONBUILD_ERROR_MESSAGE)
                 raise GoParseError(error_message)
 
         # Reformat parameters on ONBUILD instruction

@@ -4,6 +4,16 @@ from dockerfile_ast.dockerfile_items.nodes import Instruction
 
 
 class DockerfileAST:
+    """
+    An AST (Abstract Syntax Tree) of Dockerfile.
+
+    Attributes
+    ----------
+    __instructions: List[Instruction]
+        List of Dockerfile Instructions
+    __raw_code: str
+        Original source code.
+    """
     __REPR_FORMAT: str = "{0}(instructions={0}, raw_code={1})"
 
     def __init__(self, instructions: List[Instruction], raw_code: str):
@@ -26,6 +36,9 @@ class DockerfileAST:
 
 
 class DockerfileASTVisitor:
+    """
+    A visitor in order to visit each node in Dockerfile AST.
+    """
     def __init__(self, dockerfile_ast: DockerfileAST):
         self.__ast = dockerfile_ast
 

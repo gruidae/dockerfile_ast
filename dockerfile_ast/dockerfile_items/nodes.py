@@ -1,14 +1,29 @@
 from typing import List
 
 from .bash_items.nodes import BashValueNode
+from .bash_items.nodes import EnvironmentVariable
+from .bash_items.nodes import TemporaryVariable
 
 
 class DockerfileNode:
+    """
+    A node of Dockerfile Syntax.
+    """
     def __init__(self):
         pass
 
 
 class Instruction(DockerfileNode):
+    """
+    A node of Dockerfile Instruction.
+
+    Attributes
+    ----------
+    __line_num: int
+        Line number.
+    __raw_code: str
+        Original source code.
+    """
     __REPR_FORMAT: str = "{0}(line_num={1}, raw_code={2})"
 
     def __init__(self, line_num: int, raw_code: str):
@@ -24,16 +39,19 @@ class Instruction(DockerfileNode):
     def raw_code(self) -> str:
         return self.__raw_code
 
-    """
-    def __str__(self):
-        return self.__raw_code
-    """
+    def __hash__(self):
+        return hash(self.__line_num) + hash(self.__raw_code)
 
     def __repr__(self):
         self_class_name = self.__class__.__name__
         repr_line_num = repr(self.__line_num)
         repr_raw_code = repr(self.__raw_code)
         return self.__REPR_FORMAT.format(self_class_name, repr_line_num, repr_raw_code)
+
+    """
+    def __str__(self):
+        return self.__raw_code
+    """
 
 
 class FROMInstruction(Instruction):
@@ -155,15 +173,43 @@ class WORKDIRInstruction(Instruction):
 
 
 class ARGInstruction(Instruction):
-    def __init__(self, line_num: int, raw_code: str):
-        super(ARGInstruction, self).__init__(line_num, raw_code)
+    """
+    A node of ARG Instruction.
 
+    Attributes
+    ----------
+    __variable: TemporaryVariable
+        Temporary variable declared by this ARG Instruction.
+    __value: BashValueNode
+        Value of temporary variable declared by this ARG Instruction.
     """
-    ARG <name>[=<default value>]
-    """
+    __REPR_FORMAT: str = "{0}(variable={1}, value={2}, line_num={3}, raw_code={4})"
+
+    def __init__(self, variable: TemporaryVariable, value: BashValueNode, line_num: int, raw_code: str):
+        super(ARGInstruction, self).__init__(line_num, raw_code)
+        self.__variable: TemporaryVariable = variable
+        self.__value: BashValueNode = value
+
+    # override
+    def __repr__(self):
+        self_class_name = self.__class__.__name__
+        repr_variable = repr(self.__variable)
+        repr_value = repr(self.__value)
+        repr_line_num = repr(self.line_num)
+        repr_raw_code = repr(self.raw_code)
+
+        return self.__REPR_FORMAT.format(self_class_name, repr_variable, repr_value, repr_line_num, repr_raw_code)
 
 
 class ONBUILDInstruction(Instruction):
+    """
+    A node of ONBUILD Instruction.
+
+    Attributes
+    ----------
+    __param_instructions: TemporaryVariable
+        Dockerfile Instructions as parameters of ONBUILD Instruction.
+    """
     __REPR_FORMAT: str = "{0}(param_instructions={1}, line_num={2}, raw_code={3})"
 
     def __init__(self, param_instructions: List[Instruction], line_num: int, raw_code: str):
@@ -189,6 +235,17 @@ class STOPSIGNALInstruction(Instruction):
 
 
 class HEALTHCHECKInstruction(Instruction):
+    """
+    A node of HEALTHCHECK Instruction.
+
+    Todo: Implement parsing options of HEALTHCHECK Instruction.
+
+    Attributes
+    ----------
+    __param_instructions: TemporaryVariable
+        Dockerfile Instructions as parameters of HEALTHCHECK Instruction.
+        HEALTHCHECK Instruction has only CMD Instruction or "NONE."
+    """
     def __init__(self, param_instructions: List[Instruction], line_num: int, raw_code: str):
         super(HEALTHCHECKInstruction, self).__init__(line_num, raw_code)
         self.__param_instructions: List[Instruction] = param_instructions
