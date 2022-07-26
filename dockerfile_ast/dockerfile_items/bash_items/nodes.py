@@ -1,7 +1,8 @@
+from abc import ABCMeta
 from typing import List
 
 
-class BashNode:
+class BashNode(metaclass=ABCMeta):
     """
     A node of Bash Syntax.
     """
@@ -19,10 +20,7 @@ class BashNode:
         return self.__REPR_FORMAT.format(self_class_name)
 
 
-# TODO: Bashコマンド，Bashオプションの作成．
-
-
-class BashValueNode(BashNode):
+class BashValueNode(BashNode, metaclass=ABCMeta):
     """
     A node of Bash value such as variables or constants.
     """
@@ -36,14 +34,30 @@ class BashConstant(BashValueNode):
 
     Attributes
     ----------
-    __value: str
+    __value : str
         Value of this constant.
     """
     __REPR_FORMAT: str = "{0}(value={1})"
 
     def __init__(self, value: str):
+        """
+        Parameters
+        ----------
+        value : str
+            Value of this constant.
+        """
         super(BashConstant, self).__init__()
         self.__value = value
+
+    @property
+    def value(self) -> str:
+        """
+        Returns
+        -------
+        __value : str
+            Value of this constant.
+        """
+        return self.__value
 
     # override
     def __repr__(self):
@@ -62,22 +76,55 @@ class BashVariable(BashValueNode):
 
     Attributes
     ----------
-    __name: str
+    __name : str
         Name of this variable.
     """
     __REPR_FORMAT: str = "{0}(name={1})"
     __REFERRED_NAME_FORMAT = "${{{0}}}"
 
     def __init__(self, name: str):
+        """
+        Parameters
+        ----------
+        name : str
+            Name of this variable.
+        """
         super(BashVariable, self).__init__()
         self.__name = name
 
     @property
     def name(self) -> str:
+        """
+        Returns
+        -------
+        __name : str
+            Name of this variable.
+        """
         return self.__name
 
-    def referred_name(self) -> str:
+    def referenced_name(self) -> str:
+        """
+        Return this variable name when referenced in Dockerfile such as `${FOO}`.
+
+        Returns
+        -------
+        referenced_name : str
+            Variable name when referenced in Dockerfile.
+        """
         return self.__REFERRED_NAME_FORMAT.format(self.__name)
+
+    def __hash__(self):
+        return hash(self.name)
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        elif other is None:
+            return False
+        elif not isinstance(other, BashVariable):
+            return False
+        else:
+            return self.__name == other.__name
 
     # override
     def __repr__(self):
@@ -87,31 +134,112 @@ class BashVariable(BashValueNode):
 
     # override
     def __str__(self):
-        self_class_name = self.__class__.__name__
-        repr_name = repr(self.__name)
-        return self.__REPR_FORMAT.format(self_class_name, repr_name)
+        return self.referenced_name()
 
 
 class TemporaryVariable(BashVariable):
     """
     A node of TemporaryVariable (ARG Variable of Dockerfile).
-    """
-    def __init__(self, name: str):
-        super(TemporaryVariable, self).__init__(name)
 
-    def __hash__(self):
-        return hash(self.name)
+    Attributes
+    ----------
+    __value : BashValueNode
+        Value of this temporary variable.
+    """
+    __REPR_FORMAT: str = "{0}(name={1}, value={2})"
+
+    def __init__(self, name: str, value: BashValueNode):
+        """
+
+        Parameters
+        ----------
+        name : str
+            Name of this temporary variable.
+        value : BashValueNode
+            Value of this temporary variable.
+        """
+        super(TemporaryVariable, self).__init__(name)
+        self.__value: BashValueNode = value
+
+    @property
+    def value(self) -> BashValueNode:
+        """
+        Returns
+        -------
+        __value : BashValueNode
+            Value of this temporary variable.
+        """
+        return self.__value
+
+    # override
+    def __eq__(self, other):
+        if self is other:
+            return True
+        elif other is None:
+            return False
+        elif not isinstance(other, TemporaryVariable):
+            return False
+        else:
+            return self.__name == other.__name
+
+    # override
+    def __repr__(self):
+        self_class_name = self.__class__.__name__
+        repr_name = repr(self.name)
+        repr_value = repr(self.__value)
+        return self.__REPR_FORMAT.format(self_class_name, repr_name, repr_value)
 
 
 class EnvironmentVariable(BashVariable):
     """
     A node of EnvironmentVariable (ENV Variable of Dockerfile).
-    """
-    def __init__(self, name: str):
-        super(EnvironmentVariable, self).__init__(name)
 
-    def __hash__(self):
-        return hash(self.name)
+    Attributes
+    ----------
+    __value : BashValueNode
+        Value of this environment variable.
+    """
+    __REPR_FORMAT: str = "{0}(name={1}, value={2})"
+
+    def __init__(self, name: str, value: BashValueNode):
+        """
+        Parameters
+        ----------
+        name : str
+            Name of this environment variable.
+        value : BashValueNode
+            Value of this environment variable.
+        """
+        super(EnvironmentVariable, self).__init__(name)
+        self.__value: BashValueNode = value
+
+    @property
+    def value(self) -> BashValueNode:
+        """
+        Returns
+        -------
+        __value : BashValueNode
+            Value of this environment variable.
+        """
+        return self.__value
+
+    # override
+    def __eq__(self, other):
+        if self is other:
+            return True
+        elif other is None:
+            return False
+        elif not isinstance(other, TemporaryVariable):
+            return False
+        else:
+            return self.__name == other.__name
+
+    # override
+    def __repr__(self):
+        self_class_name = self.__class__.__name__
+        repr_name = repr(self.name)
+        repr_value = repr(self.__value)
+        return self.__REPR_FORMAT.format(self_class_name, repr_name, repr_value)
 
 
 class BashConcat(BashValueNode):
@@ -120,14 +248,30 @@ class BashConcat(BashValueNode):
 
     Attributes
     ----------
-    __values: List[BashValueNode]
+    __values : List[BashValueNode]
         Nodes of Bash variables and Bash constants.
     """
     __REPR_FORMAT: str = "{0}(values={1})"
 
     def __init__(self, values: List[BashValueNode]):
+        """
+        Parameters
+        ----------
+        values : List[BashValueNode]
+            Nodes of Bash variables and Bash constants.
+        """
         super(BashConcat, self).__init__()
         self.__values = values
+
+    @property
+    def values(self):
+        """
+        Returns
+        -------
+        __values : List[BashValueNode]
+            Nodes of Bash variables and Bash constants.
+        """
+        return self.__values
 
     # override
     def __repr__(self):
@@ -140,19 +284,20 @@ class BashConcat(BashValueNode):
         retval: str = ""
         for value in self.__values:
             if isinstance(value, BashVariable):
-                retval += value.referred_name()
+                retval += value.referenced_name()
             elif isinstance(value, BashConstant):
                 retval += value.value
         return retval
 
 
 class Filepath(BashNode):
+    # TODO: Need to implement
     """
     A node of filepath on Docker container.
 
     Attributes
     ---------
-    value: BashValueNode
+    __value : BashValueNode
         Concrete filepath on this Dockerfile.
     """
     __REPR_FORMAT: str = "{0}(value={1})"
@@ -171,4 +316,4 @@ class Filepath(BashNode):
     def __str__(self):
         return str(self.__value)
 
-# TODO: ユーザ名（ID），グループ名（ID），signalの作成．
+# TODO: Bashコマンド，Bashオプション，ユーザ名（ID），グループ名（ID），signalの作成．

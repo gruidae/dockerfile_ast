@@ -5,7 +5,7 @@ import sys
 from dockerfile import GoIOError, GoParseError
 
 from dockerfile_ast import DockerfileAST, DockerfileASTVisitor, DockerfileParser
-
+import dockerfile_ast.util
 
 _TEST_RAW_CODE = """FROM ubuntu
 ONBUILD RUN set -eux \\
@@ -15,18 +15,6 @@ ONBUILD RUN set -eux \\
 EXPOSE 80
 ENTRYPOINT ["httpd"]
 """
-
-
-def _init_logger() -> logging.Logger:
-    logging_logger = logging.getLogger(__name__)
-    # ログで出力するレベルを指定
-    stream_handler = logging.StreamHandler(sys.stderr)
-    stream_handler.setLevel(logging.WARNING)
-    # ログのフォーマットを指定
-    formatter = logging.Formatter("%(levelname)s: %(message)s")
-    stream_handler.setFormatter(formatter)
-    logging_logger.addHandler(stream_handler)
-    return logging_logger
 
 
 def _init_argument_parser() -> argparse.ArgumentParser:
@@ -43,50 +31,27 @@ def _init_argument_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _parse(
-        raw_code: str,
-        exclude_label_instructions: bool,
-        parse_level: int,
-        separate_instructions: bool,
-        separate_run_instructions: bool
-) -> DockerfileAST:
-    dockerfile_parser = DockerfileParser(
-        exclude_label_instructions, parse_level, separate_instructions, separate_run_instructions
-    )
-    return dockerfile_parser.parse(raw_code)
-
-
-def _parse_file(
-        filename: str,
-        exclude_label_instructions: bool,
-        parse_level: int,
-        separate_instructions: bool,
-        separate_run_instructions: bool
-) -> DockerfileAST:
-    dockerfile_parser = DockerfileParser(
-        exclude_label_instructions, parse_level, separate_instructions, separate_run_instructions
-    )
-    return dockerfile_parser.parse_file(filename)
-
-
 if __name__ == "__main__":
-    logger: logging.Logger = _init_logger()
     argument_parser: argparse.ArgumentParser = _init_argument_parser()
+    # parse command line arguments
+    args: argparse.Namespace = argument_parser.parse_args()
+    filename: str = args.filename
+    exclude_label_instructions: bool = args.exclude_label_instructions
+    parse_level: int = args.parse_level
+    separate_instructions: bool = args.separate_instructions
+    separate_run_instructions: bool = args.separate_run_instructions
 
+    logger: logging.Logger = dockerfile_ast.util.init_logger(
+        logging.DEBUG, "var/log/" + filename.replace("/", ".") + ".log", logging.WARNING
+    )
     try:
-        # parse command line arguments
-        args: argparse.Namespace = argument_parser.parse_args()
-        filename = args.filename
-        exclude_label_instructions = args.exclude_label_instructions
-        parse_level = args.parse_level
-        separate_instructions = args.separate_instructions
-        separate_run_instructions = args.separate_run_instructions
-
         # parse Dockerfile
-        dfile_ast: DockerfileAST = _parse_file(
-            filename, exclude_label_instructions, parse_level, separate_instructions, separate_run_instructions
+        logger.info("Parse " + filename)
+        dfile_parser: DockerfileParser = DockerfileParser(
+            exclude_label_instructions, parse_level, separate_instructions, separate_run_instructions, logger
         )
-        visitor: DockerfileASTVisitor = DockerfileASTVisitor(dfile_ast)
+        dfile_ast: DockerfileAST = dfile_parser.parse_file(filename)
+        visitor: DockerfileASTVisitor = DockerfileASTVisitor(dfile_ast, logger)
         visitor.visit()
     except GoParseError as e:
         if hasattr(e, "message"):

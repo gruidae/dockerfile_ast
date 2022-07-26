@@ -1,5 +1,7 @@
+import logging
 from typing import List
 
+import dockerfile_ast.util
 from dockerfile_ast.dockerfile_items.nodes import Instruction
 
 
@@ -12,11 +14,19 @@ class DockerfileAST:
     __instructions: List[Instruction]
         List of Dockerfile Instructions
     __raw_code: str
-        Original source code.
+        Original Dockerfile source code.
     """
     __REPR_FORMAT: str = "{0}(instructions={0}, raw_code={1})"
 
     def __init__(self, instructions: List[Instruction], raw_code: str):
+        """
+        Parameters
+        ----------
+        instructions : List[Instruction]
+            List of Dockerfile Instructions
+        raw_code : str
+            Original Dockerfile source code.
+        """
         self.__instructions = instructions
         self.__raw_code = raw_code
 
@@ -28,10 +38,22 @@ class DockerfileAST:
 
     @property
     def instructions(self) -> List[Instruction]:
+        """
+        Returns
+        -------
+        __instructions : List[Instruction]
+            List of Dockerfile Instructions.
+        """
         return self.__instructions
 
     @property
     def raw_code(self) -> str:
+        """
+        Returns
+        -------
+        __raw_code : str
+            Original Dockerfile source code.
+        """
         return self.__raw_code
 
 
@@ -39,16 +61,29 @@ class DockerfileASTVisitor:
     """
     A visitor in order to visit each node in Dockerfile AST.
     """
-    def __init__(self, dockerfile_ast: DockerfileAST):
-        self.__ast = dockerfile_ast
+    def __init__(self, ast: DockerfileAST, logger: logging.Logger = None):
+        """
+
+        Parameters
+        ----------
+        ast : DockerfileAST
+            Dockerfile AST.
+        logger : logging.Logger
+            Logger in order to log debug, warning or error messages.
+        """
+        self.__ast = ast
+        if logger is None:
+            self.__logger = dockerfile_ast.util.init_logger(logging.WARNING, None, logging.WARNING)
+        else:
+            self.__logger = logger
 
     def visit(self) -> bool:
         for instruction in self.__ast.instructions:
             can_visit = self.__visit_instruction(instruction)
             if not can_visit:
-                return can_visit
-        return can_visit
+                return False
+        return True
 
     def __visit_instruction(self, instruction: Instruction) -> bool:
-        print(instruction)
+        self.__logger.info(repr(instruction))
         return True
