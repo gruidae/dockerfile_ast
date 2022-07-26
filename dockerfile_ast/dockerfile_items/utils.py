@@ -2,6 +2,9 @@ from enum import Enum
 
 
 class InstructionEnum(Enum):
+    """
+    Enumerated Dockerfile Instructions.
+    """
     ADD = "ADD"
     ARG = "ARG"
     CMD = "CMD"

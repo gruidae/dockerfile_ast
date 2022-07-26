@@ -9,6 +9,9 @@ class DockerfileAST:
     """
     An AST (Abstract Syntax Tree) of Dockerfile.
 
+    You need to use `dockerfile_ast.DockerfileASTVisitor`
+    when you would like to visit syntax nodes in this `DockerfileAST` class.
+
     Attributes
     ----------
     __instructions: List[Instruction]

@@ -24,7 +24,6 @@ class BashParser:
             env_variables: Dict[str, EnvironmentVariable]
     ) -> BashVariable:
         """
-
         Simply parse Bash variable.
 
         Parameters
@@ -72,8 +71,8 @@ class BashParser:
         if token is None:
             return None
         # CommandNode()ではないため，直接WordNodeへとVisit
-        bashlex_token: bashlex.ast.node = bashlex.parse(token)[0].parts[0]
-        bashlex_variables: List[bashlex.ast.node] = bashlex_token.parts
+        bashlex_token = bashlex.parse(token)[0].parts[0]
+        bashlex_variables: List = bashlex_token.parts
 
         if len(bashlex_variables) < 1:
             # 定数のみ
@@ -84,8 +83,7 @@ class BashParser:
             if re.match(r"^\$(\{\w+\}|\w+)$", bashlex_token.word):
                 return BashParser.__simple_parse_bash_variable(variable_name, arg_variables, env_variables)
 
-        # 変数と定数が連結されているトークン
-        nodes: List[BashValueNode] = list()
+        # 変数と定数の分離
         split_tokens = [bashlex_token.word]
         for bashlex_variable in bashlex_variables:
             variable_name = bashlex_variable.value
@@ -110,7 +108,7 @@ class BashParser:
                 else:
                     split_tokens.append(tmp_split_token1)
 
-        nodes = list()
+        nodes: List[BashValueNode] = list()
         for token in split_tokens:
             if isinstance(token, str):
                 nodes.append(BashConstant(token))
