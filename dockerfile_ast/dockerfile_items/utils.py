@@ -30,3 +30,6 @@ class InstructionEnum(Enum):
             if item.value == instruction_name.upper():
                 return item
         raise ValueError("InstructionEnum: {0} instruction is not defined.".format(instruction_name))
+
+    def __str__(self):
+        return self.value

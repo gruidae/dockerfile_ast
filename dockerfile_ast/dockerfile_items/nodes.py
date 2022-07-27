@@ -1,16 +1,17 @@
 from abc import ABCMeta
 from typing import List
 
-from .bash_items.nodes import BashValueNode
-from .bash_items.nodes import EnvironmentVariable
-from .bash_items.nodes import TemporaryVariable
+from dockerfile_ast.dockerfile_items.utils import InstructionEnum
+from dockerfile_ast.dockerfile_items.bash_items.nodes import BashValueNode
+from dockerfile_ast.dockerfile_items.bash_items.nodes import EnvironmentVariable
+from dockerfile_ast.dockerfile_items.bash_items.nodes import Filepath
+from dockerfile_ast.dockerfile_items.bash_items.nodes import TemporaryVariable
 
 
 class DockerfileNode(metaclass=ABCMeta):
     """
     A node of Dockerfile Syntax.
     """
-
     def __init__(self):
         pass
 
@@ -89,7 +90,7 @@ class DockerLabel(DockerfileNode):
         return self.__REPR_FORMAT.format(self_class_name, repr_name, repr_value)
 
     def __str__(self):
-        return self.name + str(self.__value)
+        return "=\"".join([self.name, str(self.__value)]) + "\""
 
 
 class Instruction(DockerfileNode, metaclass=ABCMeta):
@@ -231,10 +232,7 @@ class LABELInstruction(Instruction):
 
     # override
     def __str__(self):
-        retval = "LABEL "
-        for label in self.__labels:
-            retval += label.name + "=" + str(label.value)
-        return retval
+        return " ".join([str(InstructionEnum.LABEL)] + [str(label) for label in self.__labels])
 
 
 class EXPOSEInstruction(Instruction):
@@ -292,32 +290,129 @@ class ENVInstruction(Instruction):
 
     # override
     def __str__(self):
-        retval = "ENV "
-        for variable in self.__variables:
-            retval += variable.name + "=" + str(variable.value)
-        return retval
+        return " ".join([str(InstructionEnum.ENV)] + [str(variable) for variable in self.variables])
 
 
 class ADDInstruction(Instruction):
-    # TODO: Need to implement
-    def __init__(self, line_num: int, raw_code: str):
-        super(ADDInstruction, self).__init__(line_num, raw_code)
+    """
+    A node of ADD Instruction.
+
+    Todo: Need to implement parse options `--chown=<user>:<group>`
+
+    Attributes
+    ----------
+    __source: Filepath
+
+    __destinations: List[FilePath]
 
     """
-    ADD [--chown=<user>:<group>] <src>... <dest>
-    ADD [--chown=<user>:<group>] ["<src>",... "<dest>"]
-    """
+    __REPR_FORMAT: str = "{0}(source={1}, destinations={2}, line_num={3}, raw_code={4})"
+
+    def __init__(self, source: Filepath, destinations: List[Filepath], line_num: int, raw_code: str):
+        """
+        Parameters
+        ----------
+        source : Filepath
+
+        destinations : List[FilePath]
+
+        line_num : int
+            Line number of this ADD Instruction.
+        raw_code : str
+            Original Dockerfile source code.
+        """
+        super(ADDInstruction, self).__init__(line_num, raw_code)
+        self.__source: Filepath = source
+        self.__destinations: List[Filepath] = destinations
+
+    @property
+    def source(self):
+        """
+        Returns
+        -------
+        __source: Filepath
+
+        """
+        return self.__source
+
+    @property
+    def destinations(self):
+        """
+        Returns
+        -------
+        __destinations: List[FilePath]
+
+        """
+        return self.__destinations
+
+    def __repr__(self):
+        self_class_name = self.__class__.__name__
+        repr_source = repr(self.__source)
+        repr_destinations = repr(self.__destinations)
+        repr_line_num = repr(self.line_num)
+        repr_raw_code = repr(self.raw_code)
+        return self.__REPR_FORMAT.format(self_class_name, repr_source, repr_destinations, repr_line_num, repr_raw_code)
 
 
 class COPYInstruction(Instruction):
-    # TODO: Need to implement
-    def __init__(self, line_num: int, raw_code: str):
-        super(COPYInstruction, self).__init__(line_num, raw_code)
+    """
+    A node of COPY Instruction.
+
+    Todo: Need to implement parse options `--chown=<user>:<group>`
+
+    Attributes
+    ----------
+    __source: Filepath
+
+    __destinations: List[FilePath]
 
     """
-    COPY [--chown=<user>:<group>] <src>... <dest>
-    COPY [--chown=<user>:<group>] ["<src>",... "<dest>"]
-    """
+    __REPR_FORMAT: str = "{0}(source={1}, destinations={2}, line_num={3}, raw_code={4})"
+
+    def __init__(self, source: Filepath, destinations: List[Filepath], line_num: int, raw_code: str):
+        """
+        Parameters
+        ----------
+        source : Filepath
+
+        destinations : List[FilePath]
+
+        line_num : int
+            Line number of this COPY Instruction.
+        raw_code : str
+            Original Dockerfile source code.
+        """
+        super(COPYInstruction, self).__init__(line_num, raw_code)
+        self.__source: Filepath = source
+        self.__destinations: List[Filepath] = destinations
+
+    @property
+    def source(self):
+        """
+        Returns
+        -------
+        __source: Filepath
+
+        """
+        return self.__source
+
+    @property
+    def destinations(self):
+        """
+        Returns
+        -------
+        __destinations: List[FilePath]
+
+        """
+        return self.__destinations
+
+    def __repr__(self):
+        self_class_name = self.__class__.__name__
+        repr_source = repr(self.__source)
+        repr_destinations = repr(self.__destinations)
+        repr_line_num = repr(self.line_num)
+        repr_raw_code = repr(self.raw_code)
+        return self.__REPR_FORMAT.format(self_class_name, repr_source, repr_destinations, repr_line_num, repr_raw_code)
 
 
 class ENTRYPOINTInstruction(Instruction):
@@ -332,13 +427,52 @@ class ENTRYPOINTInstruction(Instruction):
 
 
 class VOLUMEInstruction(Instruction):
-    # TODO: Need to implement
-    def __init__(self, line_num: int, raw_code: str):
-        super(VOLUMEInstruction, self).__init__(line_num, raw_code)
+    """
+    A node of VOLUME Instruction.
 
+    Attributes
+    ----------
+    __volumes : List[Filepath]
+        List of mount points created by this VOLUME Instruction.
     """
-    VOLUME ["/data"]
-    """
+    __REPR_FORMAT: str = "{0}(volumes={1}, line_num={2}, raw_code={3})"
+
+    def __init__(self, volumes: List[Filepath], line_num: int, raw_code: str):
+        """
+        Parameters
+        ----------
+        volumes : List[Filepath]
+            List of mount points created by this VOLUME Instruction.
+        line_num : int
+            Line number of this VOLUME Instruction.
+        raw_code : str
+            Original Dockerfile code source.
+        """
+        super(VOLUMEInstruction, self).__init__(line_num, raw_code)
+        self.__volumes: List[Filepath] = volumes
+
+    @property
+    def volumes(self):
+        """
+
+        Returns
+        -------
+        __volumes : List[Filepath]
+          List of mount points created by this VOLUME Instruction.
+        """
+        return self.__volumes
+
+    # override
+    def __repr__(self):
+        self_class_name = self.__class__.__name__
+        repr_volumes = repr(self.__volumes)
+        repr_line_num = repr(self.line_num)
+        repr_raw_code = repr(self.raw_code)
+        return self.__REPR_FORMAT.format(self_class_name, repr_volumes, repr_line_num, repr_raw_code)
+
+    # override
+    def __str__(self):
+        return " ".join([str(InstructionEnum.VOLUME)] + [str(volume) for volume in self.__volumes])
 
 
 class USERInstruction(Instruction):
@@ -353,13 +487,48 @@ class USERInstruction(Instruction):
 
 
 class WORKDIRInstruction(Instruction):
-    # TODO: Need to implement
-    def __init__(self, line_num: int, raw_code: str):
-        super(WORKDIRInstruction, self).__init__(line_num, raw_code)
+    """
+    A node of WORKDIR Instruction.
 
+    Attributes
+    ----------
+    __work_dir : Filepath
+        Working directory declared by this WORKDIR Instruction.
     """
-    WORKDIR /path/to/workdir
-    """
+    __REPR_FORMAT: str = "{0}(work_dir={1}, line_num={2}, raw_code={3})"
+
+    def __init__(self, work_dir: Filepath, line_num: int, raw_code: str):
+        """
+        Parameters
+        ----------
+        work_dir : Filepath
+            Working directory declared by this WORKDIR Instruction.
+        line_num : int
+            Line number of this WORKDIR Instruction.
+        raw_code : str
+            Original Dockerfile code source.
+        """
+        super(WORKDIRInstruction, self).__init__(line_num, raw_code)
+        self.__work_dir: Filepath = work_dir
+
+    @property
+    def work_dir(self):
+        """
+
+        Returns
+        -------
+        __work_dir : Filepath
+            Working directory declared by this WORKDIR Instruction.
+        """
+        return self.__work_dir
+
+    # override
+    def __repr__(self):
+        self_class_name = self.__class__.__name__
+        repr_work_dir = repr(self.__work_dir)
+        repr_line_num = repr(self.line_num)
+        repr_raw_code = repr(self.raw_code)
+        return self.__REPR_FORMAT.format(self_class_name, repr_work_dir, repr_line_num, repr_raw_code)
 
 
 class ARGInstruction(Instruction):
@@ -403,7 +572,6 @@ class ARGInstruction(Instruction):
         repr_variable = repr(self.__variable)
         repr_line_num = repr(self.line_num)
         repr_raw_code = repr(self.raw_code)
-
         return self.__REPR_FORMAT.format(self_class_name, repr_variable, repr_line_num, repr_raw_code)
 
 

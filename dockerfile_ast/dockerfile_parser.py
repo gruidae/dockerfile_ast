@@ -10,6 +10,7 @@ from dockerfile_ast import DockerfileAST
 from dockerfile_ast.bash_parser import BashParser
 from dockerfile_ast.dockerfile_items.bash_items.nodes import BashValueNode
 from dockerfile_ast.dockerfile_items.bash_items.nodes import EnvironmentVariable
+from dockerfile_ast.dockerfile_items.bash_items.nodes import Filepath
 from dockerfile_ast.dockerfile_items.bash_items.nodes import TemporaryVariable
 from dockerfile_ast.dockerfile_items.nodes import ADDInstruction
 from dockerfile_ast.dockerfile_items.nodes import ARGInstruction
@@ -125,7 +126,7 @@ class DockerfileParser:
             return self.__parse_add_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.COPY:
             # COPY instruction
-            return self.__parse_add_instruction(cst_instruction, line_num_offset)
+            return self.__parse_copy_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.ENTRYPOINT:
             # ENTRYPOINT instruction
             return self.__parse_expose_instruction(cst_instruction, line_num_offset)
@@ -248,15 +249,14 @@ class DockerfileParser:
         raw_code: str = cst_instruction.original
 
         instructions: List[ENVInstruction] = list()
-        variables: List[Dict[EnvironmentVariable, BashValueNode]] = list()
+        variables: List[EnvironmentVariable] = list()
 
-        value_iterator = iter(cst_instruction.value)
-        for variable_name, str_value in zip(value_iterator, value_iterator):
+        param_iterator = iter(cst_instruction.value)
+        for variable_name, str_value in zip(param_iterator, param_iterator):
             # 右辺の変数代入値からparse
             variable_value: BashValueNode = BashParser.simple_parse_bash_concat(
                 str_value, self.__arg_variables, self.__env_variables
             )
-
             # 宣言済みか否かにかかわらず，新しくENV変数ノードを追加．
             variable: EnvironmentVariable = EnvironmentVariable(variable_name, variable_value)
             self.__env_variables[variable_name] = variable
@@ -270,29 +270,23 @@ class DockerfileParser:
 
     def __parse_add_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[ADDInstruction]:
-        # TODO: Need to implement
+        # Todo: Need to implement parse options `--chown=<user>:<group>`
         line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
-
-        """
-        ADD [--chown=<user>:<group>] <src>... <dest>
-        ADD [--chown=<user>:<group>] ["<src>",... "<dest>"]
-        """
-
-        return [ADDInstruction(line_num, raw_code)]
+        source_filepath, destination_filepaths = _parse_source_and_destination_filepaths(
+            cst_instruction.value, self.__arg_variables, self.__env_variables
+        )
+        return [ADDInstruction(source_filepath, destination_filepaths, line_num, raw_code)]
 
     def __parse_copy_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[COPYInstruction]:
-        # TODO: Need to implement
+        # Todo: Need to implement
         line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
-
-        """
-        COPY [--chown=<user>:<group>] <src>... <dest>
-        COPY [--chown=<user>:<group>] ["<src>",... "<dest>"]
-        """
-
-        return [COPYInstruction(line_num, raw_code)]
+        source_filepath, destination_filepaths = _parse_source_and_destination_filepaths(
+            cst_instruction.value, self.__arg_variables, self.__env_variables
+        )
+        return [COPYInstruction(source_filepath, destination_filepaths, line_num, raw_code)]
 
     def __parse_entrypoint_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[ENTRYPOINTInstruction]:
@@ -309,16 +303,22 @@ class DockerfileParser:
 
     def __parse_volume_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[VOLUMEInstruction]:
-        # TODO: Need to implement
         line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
-        """
-        VOLUME ["/data"]
-        VOLUME /data1 /data2 ..
-        """
-
-        return [VOLUMEInstruction(line_num, raw_code)]
+        filepaths: List[Filepath] = list()
+        instructions: List[VOLUMEInstruction] = list()
+        for str_value in cst_instruction.value:
+            value: BashValueNode = BashParser.simple_parse_bash_concat(
+                str_value, self.__arg_variables, self.__env_variables
+            )
+            filepaths.append(Filepath(value))
+            if self.__separate_instructions:
+                instructions.append(VOLUMEInstruction(filepaths, line_num, raw_code))
+                filepaths.clear()
+        if not self.__separate_instructions:
+            instructions.append(VOLUMEInstruction(filepaths, line_num, raw_code))
+        return instructions
 
     def __parse_user_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[USERInstruction]:
@@ -335,19 +335,17 @@ class DockerfileParser:
 
     def __parse_workdir_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[WORKDIRInstruction]:
-        # TODO: Need to implement
         line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
-
-        """
-        WORKDIR /path/to/workdir
-        """
-
-        return [WORKDIRInstruction(line_num, raw_code)]
+        str_value: str = cst_instruction.value[0]
+        value: BashValueNode = BashParser.simple_parse_bash_concat(
+            str_value, self.__arg_variables, self.__env_variables
+        )
+        filepath: Filepath = Filepath(value)
+        return [WORKDIRInstruction(filepath, line_num, raw_code)]
 
     def __parse_arg_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[ARGInstruction]:
-        # TODO: Need to implement
         line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
@@ -375,7 +373,7 @@ class DockerfileParser:
             # 宣言済みか否かにかかわらず，新しくARG変数ノードを追加．
             variable: TemporaryVariable = TemporaryVariable(variable_name, value)
             self.__arg_variables[variable_name] = variable
-        return [ARGInstruction(variable, line_num, raw_code)]
+            return [ARGInstruction(variable, line_num, raw_code)]
 
     def __parse_onbuild_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[ONBUILDInstruction]:
@@ -452,12 +450,32 @@ class DockerfileParser:
         return [SHELLInstruction(line_num, raw_code)]
 
 
+def _parse_source_and_destination_filepaths(
+        cst_instruction_params: List[str],
+        arg_variables: Dict[str, TemporaryVariable],
+        env_variables: Dict[str, EnvironmentVariable]
+    ) -> Tuple[Filepath, List[Filepath]]:
+    param_iterator = iter(cst_instruction_params)
+    next_param: str = next(param_iterator)
+    value: BashValueNode = BashParser.simple_parse_bash_concat(next_param, arg_variables, env_variables)
+    source_filepath: Filepath = Filepath(value)
+
+    destination_filepaths: List[Filepath] = list()
+    while True:
+        try:
+            next_param: str = next(param_iterator)
+            value: BashValueNode = BashParser.simple_parse_bash_concat(next_param, arg_variables, env_variables)
+            destination_filepaths.append(Filepath(value))
+        except StopIteration:
+            break
+    return source_filepath, destination_filepaths
+
+
 def _raise_go_parse_error(msg: str, line_num: int, filename: str = None):
-    PARSE_ERROR_FORMAT = "{0}: {1}"
-    PARSE_ERROR_FORMAT_FILENAME = "{0}: {1}: {2}"
     if filename is None:
+        PARSE_ERROR_FORMAT = "{0}: {1}"
         error_message = PARSE_ERROR_FORMAT.format(line_num, msg)
-        raise GoParseError(error_message)
     else:
+        PARSE_ERROR_FORMAT_FILENAME = "{0}: {1}: {2}"
         error_message = PARSE_ERROR_FORMAT_FILENAME.format(filename, line_num, msg)
-        raise GoParseError(error_message)
+    raise GoParseError(error_message)

@@ -134,7 +134,7 @@ class BashVariable(BashValueNode):
 
     # override
     def __str__(self):
-        return self.referenced_name()
+        return self.__name
 
 
 class TemporaryVariable(BashVariable):
@@ -189,6 +189,13 @@ class TemporaryVariable(BashVariable):
         repr_value = repr(self.__value)
         return self.__REPR_FORMAT.format(self_class_name, repr_name, repr_value)
 
+    # override
+    def __str__(self):
+        if self.__value is None:
+            return super(TemporaryVariable, self).__str__()
+        else:
+            return "=".join([self.name, str(self.__value)])
+
 
 class EnvironmentVariable(BashVariable):
     """
@@ -241,6 +248,10 @@ class EnvironmentVariable(BashVariable):
         repr_value = repr(self.__value)
         return self.__REPR_FORMAT.format(self_class_name, repr_name, repr_value)
 
+    # override
+    def __str__(self):
+        return "=".join([self.name, str(self.__value)])
+
 
 class BashConcat(BashValueNode):
     """
@@ -291,7 +302,6 @@ class BashConcat(BashValueNode):
 
 
 class Filepath(BashNode):
-    # TODO: Need to implement
     """
     A node of filepath on Docker container.
 

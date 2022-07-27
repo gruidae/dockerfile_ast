@@ -23,6 +23,8 @@ class DockerfileAST:
 
     def __init__(self, instructions: List[Instruction], raw_code: str):
         """
+        An AST (Abstract Syntax Tree) of Dockerfile.
+
         Parameters
         ----------
         instructions : List[Instruction]
@@ -66,6 +68,7 @@ class DockerfileASTVisitor:
     """
     def __init__(self, ast: DockerfileAST, logger: logging.Logger = None):
         """
+        A visitor in order to visit each node in Dockerfile AST.
 
         Parameters
         ----------
