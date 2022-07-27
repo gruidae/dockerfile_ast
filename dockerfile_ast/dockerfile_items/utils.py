@@ -2,6 +2,9 @@ from enum import Enum
 
 
 class InstructionEnum(Enum):
+    """
+    Enumerated Dockerfile Instructions.
+    """
     ADD = "ADD"
     ARG = "ARG"
     CMD = "CMD"
@@ -22,8 +25,11 @@ class InstructionEnum(Enum):
     WORKDIR = "WORKDIR"
 
     @staticmethod
-    def of(name: str):
+    def of(instruction_name: str):
         for item in InstructionEnum:
-            if item.value == name.upper():
+            if item.value == instruction_name.upper():
                 return item
-        raise ValueError("InstructionEnum: {0} instruction is not found.".format(name))
+        raise ValueError("InstructionEnum: {0} instruction is not defined.".format(instruction_name))
+
+    def __str__(self):
+        return self.value

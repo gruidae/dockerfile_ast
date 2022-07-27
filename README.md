@@ -5,7 +5,7 @@ Python library for generating abstract syntax tree (AST) of Dockerfile.
 This repository is incomplete.
 
 ## Installation
-This project partly uses ["dockerfile" package](https://pypi.org/project/dockerfile/)
+This project partly uses [`dockerfile` package](https://pypi.org/project/dockerfile/)
 (maintained by [asottile](https://pypi.org/user/asottile/)).
 You need to install Go because "dockerfile" package is written by Go Language.
 You can download Go via https://go.dev/dl/.
