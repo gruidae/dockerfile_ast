@@ -1,8 +1,8 @@
 import logging
 from typing import List
 
-import dockerfile_ast.util
-from dockerfile_ast.dockerfile_items.nodes import Instruction
+import dockerfile_ast.utils
+from dockerfile_ast.dockerfile_items.instructions import Instruction
 
 
 class DockerfileAST:
@@ -79,7 +79,7 @@ class DockerfileASTVisitor:
         """
         self.__ast = ast
         if logger is None:
-            self.__logger = dockerfile_ast.util.init_logger(logging.WARNING, None, logging.WARNING)
+            self.__logger = dockerfile_ast.utils.init_logger(logging.WARNING, None, logging.WARNING)
         else:
             self.__logger = logger
 

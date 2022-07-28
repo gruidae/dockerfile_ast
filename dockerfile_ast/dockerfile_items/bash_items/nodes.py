@@ -1,8 +1,10 @@
 from abc import ABCMeta
 from typing import List
 
+from dockerfile_ast.utils import DockerfileASTNode
 
-class BashNode(metaclass=ABCMeta):
+
+class BashNode(DockerfileASTNode, metaclass=ABCMeta):
     """
     A node of Bash Syntax.
     """
@@ -137,9 +139,9 @@ class BashVariable(BashValueNode):
         return self.__name
 
 
-class TemporaryVariable(BashVariable):
+class BuildTimeVariable(BashVariable):
     """
-    A node of TemporaryVariable (ARG Variable of Dockerfile).
+    A node of build-time variable (ARG Variable of Dockerfile).
 
     Attributes
     ----------
@@ -154,11 +156,11 @@ class TemporaryVariable(BashVariable):
         Parameters
         ----------
         name : str
-            Name of this temporary variable.
+            Name of this build-time variable.
         value : BashValueNode
-            Value of this temporary variable.
+            Value of this build-time variable.
         """
-        super(TemporaryVariable, self).__init__(name)
+        super(BuildTimeVariable, self).__init__(name)
         self.__value: BashValueNode = value
 
     @property
@@ -167,7 +169,7 @@ class TemporaryVariable(BashVariable):
         Returns
         -------
         __value : BashValueNode
-            Value of this temporary variable.
+            Value of this build-time variable.
         """
         return self.__value
 
@@ -177,7 +179,7 @@ class TemporaryVariable(BashVariable):
             return True
         elif other is None:
             return False
-        elif not isinstance(other, TemporaryVariable):
+        elif not isinstance(other, BuildTimeVariable):
             return False
         else:
             return self.__name == other.__name
@@ -192,7 +194,7 @@ class TemporaryVariable(BashVariable):
     # override
     def __str__(self):
         if self.__value is None:
-            return super(TemporaryVariable, self).__str__()
+            return super(BuildTimeVariable, self).__str__()
         else:
             return "=".join([self.name, str(self.__value)])
 
@@ -236,7 +238,7 @@ class EnvironmentVariable(BashVariable):
             return True
         elif other is None:
             return False
-        elif not isinstance(other, TemporaryVariable):
+        elif not isinstance(other, BuildTimeVariable):
             return False
         else:
             return self.__name == other.__name

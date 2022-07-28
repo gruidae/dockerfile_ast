@@ -5,32 +5,31 @@ from typing import Dict, List, Tuple
 import dockerfile
 from dockerfile import GoParseError
 
-import dockerfile_ast.util
-from dockerfile_ast import DockerfileAST
+import dockerfile_ast.utils
+from dockerfile_ast import DockerfileAST, Instruction
 from dockerfile_ast.bash_parser import BashParser
 from dockerfile_ast.dockerfile_items.bash_items.nodes import BashValueNode
 from dockerfile_ast.dockerfile_items.bash_items.nodes import EnvironmentVariable
 from dockerfile_ast.dockerfile_items.bash_items.nodes import Filepath
-from dockerfile_ast.dockerfile_items.bash_items.nodes import TemporaryVariable
-from dockerfile_ast.dockerfile_items.nodes import ADDInstruction
-from dockerfile_ast.dockerfile_items.nodes import ARGInstruction
-from dockerfile_ast.dockerfile_items.nodes import CMDInstruction
-from dockerfile_ast.dockerfile_items.nodes import COPYInstruction
+from dockerfile_ast.dockerfile_items.bash_items.nodes import BuildTimeVariable
+import dockerfile_ast.dockerfile_items.bash_items.utils
 from dockerfile_ast.dockerfile_items.nodes import DockerLabel
-from dockerfile_ast.dockerfile_items.nodes import ENTRYPOINTInstruction
-from dockerfile_ast.dockerfile_items.nodes import ENVInstruction
-from dockerfile_ast.dockerfile_items.nodes import EXPOSEInstruction
-from dockerfile_ast.dockerfile_items.nodes import FROMInstruction
-from dockerfile_ast.dockerfile_items.nodes import HEALTHCHECKInstruction
-from dockerfile_ast.dockerfile_items.nodes import Instruction
-from dockerfile_ast.dockerfile_items.nodes import LABELInstruction
-from dockerfile_ast.dockerfile_items.nodes import ONBUILDInstruction
-from dockerfile_ast.dockerfile_items.nodes import RUNInstruction
-from dockerfile_ast.dockerfile_items.nodes import SHELLInstruction
-from dockerfile_ast.dockerfile_items.nodes import STOPSIGNALInstruction
-from dockerfile_ast.dockerfile_items.nodes import USERInstruction
-from dockerfile_ast.dockerfile_items.nodes import VOLUMEInstruction
-from dockerfile_ast.dockerfile_items.nodes import WORKDIRInstruction
+from dockerfile_ast.dockerfile_items.instructions import FROMInstruction, RUNInstruction
+from dockerfile_ast.dockerfile_items.instructions import CMDInstruction
+from dockerfile_ast.dockerfile_items.instructions import LABELInstruction
+from dockerfile_ast.dockerfile_items.instructions import EXPOSEInstruction
+from dockerfile_ast.dockerfile_items.instructions import ENVInstruction
+from dockerfile_ast.dockerfile_items.instructions import ADDInstruction
+from dockerfile_ast.dockerfile_items.instructions import COPYInstruction
+from dockerfile_ast.dockerfile_items.instructions import ENTRYPOINTInstruction
+from dockerfile_ast.dockerfile_items.instructions import VOLUMEInstruction
+from dockerfile_ast.dockerfile_items.instructions import USERInstruction
+from dockerfile_ast.dockerfile_items.instructions import WORKDIRInstruction
+from dockerfile_ast.dockerfile_items.instructions import ARGInstruction
+from dockerfile_ast.dockerfile_items.instructions import ONBUILDInstruction
+from dockerfile_ast.dockerfile_items.instructions import STOPSIGNALInstruction
+from dockerfile_ast.dockerfile_items.instructions import HEALTHCHECKInstruction
+from dockerfile_ast.dockerfile_items.instructions import SHELLInstruction
 from dockerfile_ast.dockerfile_items.utils import InstructionEnum
 
 
@@ -38,6 +37,7 @@ class DockerfileParser:
     """
     A parser of Dockerfile.
     """
+
     def __init__(
             self,
             exclude_label_instructions: bool = False,
@@ -53,23 +53,25 @@ class DockerfileParser:
         self.__separate_instructions: bool = separate_instructions
         self.__separate_run_instructions: bool = separate_run_instructions
         if logger is None:
-            self.__logger: logging.Logger = dockerfile_ast.util.init_logger(logging.WARNING, None, logging.WARNING)
+            self.__logger: logging.Logger = dockerfile_ast.utils.init_logger(logging.WARNING, None, logging.WARNING)
         else:
             self.__logger: logging.Logger = logger
 
         self.__filename: str = None
         self.__raw_code: str = None
         self.__cst: Tuple[dockerfile.Command] = None
-
-        self.__arg_variables: Dict[str, TemporaryVariable] = dict()  # ARG変数の辞書型（変数名がキー）
-        self.__env_variables: Dict[str, EnvironmentVariable] = dict()  # ENV変数の辞書型（変数名がキー）
+        # ARG変数の辞書型（変数名がキー）
+        self.__arg_variables: Dict[str, BuildTimeVariable] = dict()
+        # ENV変数の辞書型（変数名がキー）
+        self.__env_variables: Dict[str, EnvironmentVariable] \
+            = dockerfile_ast.dockerfile_items.bash_items.utils.init_environment_variables()
 
     def parse(self, raw_code: str) -> DockerfileAST:
         self.__filename = None
         self.__raw_code = raw_code
         self.__cst = dockerfile.parse_string(raw_code)
         self.__arg_variables = dict()
-        self.__env_variables = dict()
+        self.__env_variables = dockerfile_ast.dockerfile_items.bash_items.utils.init_environment_variables()
         return self.__parse_instructions()
 
     def parse_file(self, filename: str) -> DockerfileAST:
@@ -78,7 +80,7 @@ class DockerfileParser:
             self.__raw_code = fp.read()
         self.__cst = dockerfile.parse_file(filename)
         self.__arg_variables = dict()
-        self.__env_variables = dict()
+        self.__env_variables = dockerfile_ast.dockerfile_items.bash_items.utils.init_environment_variables()
         return self.__parse_instructions()
 
     def __parse_instructions(self) -> DockerfileAST:
@@ -106,7 +108,7 @@ class DockerfileParser:
         elif instruction_enum == InstructionEnum.LABEL:
             # LABEL instruction
             if self.__exclude_label_instructions:
-                # Skip parsing this instruction if you do not need LABEL Instructions
+                # Skip parsing this instruction if you do not would like LABEL Instructions
                 return None
             return self.__parse_label_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.MAINTAINER:
@@ -363,17 +365,17 @@ class DockerfileParser:
             variable_name = cst_instruction.value[0]
             str_value = cst_instruction.value[1]
 
+        if variable_name in self.__env_variables.keys():
+            _raise_go_parse_error(variable_name + " is Environment Variable.", line_num, self.__filename)
+        elif variable_name in self.__arg_variables.keys():
+            _raise_go_parse_error(variable_name + " is already declared.", line_num, self.__filename)
         # 先に右辺をparse
         value: BashValueNode = BashParser.simple_parse_bash_concat(
             str_value, self.__arg_variables, self.__env_variables
         )
-        if variable_name in self.__env_variables.keys():
-            _raise_go_parse_error(variable_name + " is Environment Variable.", line_num, self.__filename)
-        else:
-            # 宣言済みか否かにかかわらず，新しくARG変数ノードを追加．
-            variable: TemporaryVariable = TemporaryVariable(variable_name, value)
-            self.__arg_variables[variable_name] = variable
-            return [ARGInstruction(variable, line_num, raw_code)]
+        variable: BuildTimeVariable = BuildTimeVariable(variable_name, value)
+        self.__arg_variables[variable_name] = variable
+        return [ARGInstruction(variable, line_num, raw_code)]
 
     def __parse_onbuild_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[ONBUILDInstruction]:
@@ -452,9 +454,9 @@ class DockerfileParser:
 
 def _parse_source_and_destination_filepaths(
         cst_instruction_params: List[str],
-        arg_variables: Dict[str, TemporaryVariable],
+        arg_variables: Dict[str, BuildTimeVariable],
         env_variables: Dict[str, EnvironmentVariable]
-    ) -> Tuple[Filepath, List[Filepath]]:
+) -> Tuple[Filepath, List[Filepath]]:
     param_iterator = iter(cst_instruction_params)
     next_param: str = next(param_iterator)
     value: BashValueNode = BashParser.simple_parse_bash_concat(next_param, arg_variables, env_variables)
