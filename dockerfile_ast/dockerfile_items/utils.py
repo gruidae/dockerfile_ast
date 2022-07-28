@@ -26,6 +26,17 @@ class InstructionEnum(Enum):
 
     @staticmethod
     def of(instruction_name: str):
+        """
+
+        Parameters
+        ----------
+        instruction_name : str
+            Dockerfile Instruction name as str.
+        Returns
+        -------
+        instruction_enum : InstructionEnum
+            Enumerated Dockerfile Instruction.
+        """
         for item in InstructionEnum:
             if item.value == instruction_name.upper():
                 return item

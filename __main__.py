@@ -4,7 +4,7 @@ import logging
 from dockerfile import GoIOError, GoParseError
 
 from dockerfile_ast import DockerfileAST, DockerfileASTVisitor, DockerfileParser
-import dockerfile_ast.util
+import dockerfile_ast.utils
 
 _TEST_RAW_CODE = """FROM ubuntu
 ONBUILD RUN set -eux \\
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     separate_instructions: bool = args.separate_instructions
     separate_run_instructions: bool = args.separate_run_instructions
 
-    logger: logging.Logger = dockerfile_ast.util.init_logger(
+    logger: logging.Logger = dockerfile_ast.utils.init_logger(
         logging.DEBUG, "var/log/" + filename.replace("/", ".") + ".log", logging.WARNING
     )
     try:

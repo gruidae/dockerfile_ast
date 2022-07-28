@@ -7,7 +7,7 @@ from dockerfile_ast.dockerfile_items.bash_items.nodes import BashConcat
 from dockerfile_ast.dockerfile_items.bash_items.nodes import BashConstant
 from dockerfile_ast.dockerfile_items.bash_items.nodes import BashVariable
 from dockerfile_ast.dockerfile_items.bash_items.nodes import EnvironmentVariable
-from dockerfile_ast.dockerfile_items.bash_items.nodes import TemporaryVariable
+from dockerfile_ast.dockerfile_items.bash_items.nodes import BuildTimeVariable
 
 
 class BashParser:
@@ -20,7 +20,7 @@ class BashParser:
     @staticmethod
     def __simple_parse_bash_variable(
             variable_name: str,
-            arg_variables: Dict[str, TemporaryVariable],
+            arg_variables: Dict[str, BuildTimeVariable],
             env_variables: Dict[str, EnvironmentVariable]
     ) -> BashVariable:
         """
@@ -30,8 +30,8 @@ class BashParser:
         ----------
         variable_name : str
             Variable name on Dockerfile.
-        arg_variables : Dict[str, TemporaryVariable]
-            Associative array of temporary variable on Dockerfile.
+        arg_variables : Dict[str, BuildTimeVariable]
+            Associative array of build-time variable on Dockerfile.
         env_variables : Dict[str, EnvironmentVariable]
             Associative array of environment variable on Dockerfile.
         Returns
@@ -49,7 +49,7 @@ class BashParser:
     @staticmethod
     def simple_parse_bash_concat(
             token: str,
-            arg_variables: Dict[str, TemporaryVariable],
+            arg_variables: Dict[str, BuildTimeVariable],
             env_variables: Dict[str, EnvironmentVariable]
     ) -> BashValueNode:
         """
@@ -59,8 +59,8 @@ class BashParser:
         ----------
         token : str
             Token including Bash variables and constants.
-        arg_variables : Dict[str, TemporaryVariable]
-            Associative array of temporary variable on Dockerfile.
+        arg_variables : Dict[str, BuildTimeVariable]
+            Associative array of build-time variable on Dockerfile.
         env_variables : Dict[str, EnvironmentVariable]
             Associative array of environment variable on Dockerfile.
         Returns
@@ -80,7 +80,7 @@ class BashParser:
         elif len(bashlex_variables) == 1:
             # 変数のみ（${variable:-word}や${variable:+word}は非対応）
             variable_name = bashlex_variables[0].value
-            if re.match(r"^\$(\{\w+\}|\w+)$", bashlex_token.word):
+            if re.match(r"^\$(\{\w+}|\w+)$", bashlex_token.word):
                 return BashParser.__simple_parse_bash_variable(variable_name, arg_variables, env_variables)
 
         # 変数と定数の分離
@@ -92,7 +92,7 @@ class BashParser:
             for tmp_split_token1 in tmp_split_tokens1:
                 if isinstance(tmp_split_token1, str):
                     # 変数名でトークンを分割
-                    tmp_split_tokens2 = re.split(r"\$\{" + variable_name + r"\}|\$" + variable_name, tmp_split_token1)
+                    tmp_split_tokens2 = re.split(r"\$\{" + variable_name + r"}|\$" + variable_name, tmp_split_token1)
                     is_head_split_tokens = True
                     for tmp_split_token2 in tmp_split_tokens2:
                         tmp_split_token2 = tmp_split_token2
