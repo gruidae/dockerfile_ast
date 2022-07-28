@@ -9,8 +9,11 @@ class DockerfileAST:
     """
     An AST (Abstract Syntax Tree) of Dockerfile.
 
-    You need to use `dockerfile_ast.DockerfileASTVisitor`
-    when you would like to visit syntax nodes in this `DockerfileAST` class.
+    You need to use ``dockerfile_ast.DockerfileParser``
+    when you would like to generate this `DockerfileAST` instance.
+
+    You need to use ``dockerfile_ast.DockerfileASTVisitor``
+    when you would like to visit syntax nodes in this ``DockerfileAST`` instance.
 
     Attributes
     ----------
@@ -18,6 +21,11 @@ class DockerfileAST:
         List of Dockerfile Instructions
     __raw_code: str
         Original Dockerfile source code.
+
+    See Also
+    --------
+    dockerfile_ast.DockerfileParser : A parser of Dockerfile.
+    dockerfile_ast.DockerfileVisitor : A visitor in order to visit each node in Dockerfile AST.
     """
     __REPR_FORMAT: str = "{0}(instructions={0}, raw_code={1})"
 
@@ -28,7 +36,7 @@ class DockerfileAST:
         Parameters
         ----------
         instructions : List[Instruction]
-            List of Dockerfile Instructions
+            List of Dockerfile Instructions.
         raw_code : str
             Original Dockerfile source code.
         """
@@ -74,7 +82,7 @@ class DockerfileASTVisitor:
         ----------
         ast : DockerfileAST
             Dockerfile AST.
-        logger : logging.Logger
+        logger : logging.Logger or None
             Logger in order to log debug, warning or error messages.
         """
         self.__ast = ast

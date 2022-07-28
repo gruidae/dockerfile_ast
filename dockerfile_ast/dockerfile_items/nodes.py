@@ -9,8 +9,6 @@ class DockerfileSyntaxNode(DockerfileASTNode, metaclass=ABCMeta):
     """
     A node of Dockerfile Syntax.
     """
-    def __init__(self):
-        pass
 
 
 class DockerImage(DockerfileSyntaxNode):
@@ -30,19 +28,54 @@ class DockerImage(DockerfileSyntaxNode):
 
 
 class DockerPort(DockerfileSyntaxNode):
-    # TODO: Need to implement
-    def __init__(self, port: BashValueNode, protocol: BashValueNode = None):
+    """
+    A node of Docker port.
+
+    Attributes
+    ----------
+    __port_num : BashValueNode
+        Port number of this port.
+    __protocol : BashValueNode
+        Ethernet protocol of this port.
+    """
+    __REPR_FORMAT: str = "{0}(port_num={1}, protocol={2})"
+
+    def __init__(self, port_num: BashValueNode, protocol: BashValueNode = None):
         super(DockerPort, self).__init__()
-        self.__port: BashValueNode = port
+        self.__port_num: BashValueNode = port_num
         self.__protocol: BashValueNode = protocol
 
     @property
-    def port(self):
-        return self.__port
+    def port_num(self) -> BashValueNode:
+        """
+        Returns
+        -------
+        __port_num : BashValueNode
+            Port number of this port.
+        """
+        return self.__port_num
 
     @property
-    def protocol(self):
+    def protocol(self) -> BashValueNode:
+        """
+        Returns
+        -------
+        __protocol : BashValueNode
+            Ethernet protocol of this port.
+        """
         return self.__protocol
+
+    def __repr__(self):
+        self_class_name = self.__class__.__name__
+        repr_port_num = repr(self.__port_num)
+        repr_protocol = repr(self.__protocol)
+        return self.__REPR_FORMAT.format(self_class_name, repr_port_num, repr_protocol)
+
+    def __str__(self):
+        if self.__protocol is None:
+            return str(self.__port_num)
+        else:
+            return "/".join([str(self.__port_num), str(self.__protocol)])
 
 
 class DockerLabel(DockerfileSyntaxNode):
@@ -73,11 +106,24 @@ class DockerLabel(DockerfileSyntaxNode):
         self.__value = value
 
     @property
-    def name(self):
+    def name(self) -> str:
+        """
+        Returns
+        -------
+        __name : str
+            This Docker label name.
+        """
         return self.__name
 
     @property
-    def value(self):
+    def value(self) -> BashValueNode:
+        """
+
+        Returns
+        -------
+        __value : str
+            Value of this Docker label.
+        """
         return self.__value
 
     def __repr__(self):

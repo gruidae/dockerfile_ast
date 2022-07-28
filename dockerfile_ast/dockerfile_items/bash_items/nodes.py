@@ -8,26 +8,12 @@ class BashNode(DockerfileASTNode, metaclass=ABCMeta):
     """
     A node of Bash Syntax.
     """
-    __REPR_FORMAT: str = "{0}()"
-
-    def __init__(self):
-        pass
-
-    def __repr__(self):
-        self_class_name = self.__class__.__name__
-        return self.__REPR_FORMAT.format(self_class_name)
-
-    def __str__(self):
-        self_class_name = self.__class__.__name__
-        return self.__REPR_FORMAT.format(self_class_name)
 
 
 class BashValueNode(BashNode, metaclass=ABCMeta):
     """
     A node of Bash value such as variables or constants.
     """
-    def __init__(self):
-        super(BashValueNode, self).__init__()
 
 
 class BashConstant(BashValueNode):
@@ -277,7 +263,7 @@ class BashConcat(BashValueNode):
         self.__values = values
 
     @property
-    def values(self):
+    def values(self) -> List[BashValueNode]:
         """
         Returns
         -------
@@ -302,6 +288,8 @@ class BashConcat(BashValueNode):
                 retval += value.value
         return retval
 
+# TODO: Bashコマンド，Bashオプション，ユーザ名（ID），グループ名（ID）
+
 
 class Filepath(BashNode):
     """
@@ -315,8 +303,24 @@ class Filepath(BashNode):
     __REPR_FORMAT: str = "{0}(value={1})"
 
     def __init__(self, value: BashValueNode):
+        """
+        Parameters
+        ----------
+        value : BashValueNode
+            Concrete filepath on this Dockerfile.
+        """
         super(Filepath, self).__init__()
         self.__value = value
+
+    @property
+    def value(self) -> BashValueNode:
+        """
+        Returns
+        -------
+        __value : BashValueNode
+            Concrete filepath on this Dockerfile.
+        """
+        return self.__value
 
     # override
     def __repr__(self):
@@ -328,4 +332,43 @@ class Filepath(BashNode):
     def __str__(self):
         return str(self.__value)
 
-# TODO: Bashコマンド，Bashオプション，ユーザ名（ID），グループ名（ID），signalの作成．
+
+class SystemCallSignal(BashNode):
+    """
+    A node of system call signal that will be sent to the container to exit.
+
+    Attributes
+    ----------
+    __value : BashValueNode
+        Concrete system call signal.
+    """
+    __REPR_FORMAT: str = "{0}(value={1})"
+
+    def __init__(self, value: BashValueNode):
+        """
+        Parameters
+        ----------
+        value : BashValueNode
+            Concrete system call signal.
+        """
+        super(SystemCallSignal, self).__init__()
+        self.__value: BashValueNode = value
+
+    @property
+    def value(self) -> BashValueNode:
+        """
+        Returns
+        -------
+        __value : BashValueNode
+            Concrete system call signal.
+        """
+        return self.__value
+
+    # override
+    def __repr__(self):
+        self_class_name = self.__class__.__name__
+        repr_value = repr(self.__value)
+        return self.__REPR_FORMAT.format(self_class_name, repr_value)
+
+    def __str__(self):
+        return str(self.__value)

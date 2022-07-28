@@ -4,8 +4,10 @@ from typing import List
 from dockerfile_ast.dockerfile_items.bash_items.nodes import BuildTimeVariable
 from dockerfile_ast.dockerfile_items.bash_items.nodes import EnvironmentVariable
 from dockerfile_ast.dockerfile_items.bash_items.nodes import Filepath
+from dockerfile_ast.dockerfile_items.bash_items.nodes import SystemCallSignal
 from dockerfile_ast.dockerfile_items.nodes import DockerfileSyntaxNode
 from dockerfile_ast.dockerfile_items.nodes import DockerLabel
+from dockerfile_ast.dockerfile_items.nodes import DockerPort
 from dockerfile_ast.dockerfile_items.utils import InstructionEnum
 
 
@@ -58,6 +60,7 @@ class Instruction(DockerfileSyntaxNode, metaclass=ABCMeta):
     def __hash__(self):
         return hash(self.__line_num) + hash(self.__raw_code)
 
+    # override
     def __repr__(self):
         self_class_name = self.__class__.__name__
         repr_line_num = repr(self.__line_num)
@@ -129,7 +132,7 @@ class LABELInstruction(Instruction):
         self.__labels: List[DockerLabel] = labels
 
     @property
-    def labels(self):
+    def labels(self) -> List[DockerLabel]:
         """
         Returns
         -------
@@ -152,13 +155,47 @@ class LABELInstruction(Instruction):
 
 
 class EXPOSEInstruction(Instruction):
-    # TODO: Need to implement
-    def __init__(self, line_num: int, raw_code: str):
-        super(EXPOSEInstruction, self).__init__(line_num, raw_code)
+    """
+    A node of EXPOSE Instruction.
 
+    Attributes
+    ----------
+    __ports : List[DockerPort]
+        List of Docker ports declared by this EXPOSE Instruction.
     """
-    EXPOSE <port> [<port>/<protocol>...]
-    """
+    __REPR_FORMAT: str = "{0}(ports={1}, line_num={2}, raw_code={3})"
+
+    def __init__(self, ports: List[DockerPort], line_num: int, raw_code: str):
+        """
+        Parameters
+        ----------
+        ports : List[DockerPort]
+            List of Docker ports declared by this LABEL Instruction.
+        line_num : int
+            Line number of this EXPOSE Instruction.
+        raw_code : str
+            Original Dockerfile source code.
+        """
+        super(EXPOSEInstruction, self).__init__(line_num, raw_code)
+        self.__ports: List[DockerPort] = ports
+
+    @property
+    def ports(self) -> List[DockerPort]:
+        """
+        Returns
+        -------
+        __ports : List[DockerPort]
+            List of Docker ports declared by this EXPOSE Instruction.
+        """
+        return self.__ports
+
+    # override
+    def __repr__(self):
+        self_class_name = self.__class__.__name__
+        repr_ports = repr(self.__ports)
+        repr_line_num = repr(self.line_num)
+        repr_raw_code = repr(self.raw_code)
+        return self.__REPR_FORMAT.format(self_class_name, repr_ports, repr_line_num, repr_raw_code)
 
 
 class ENVInstruction(Instruction):
@@ -187,7 +224,7 @@ class ENVInstruction(Instruction):
         self.__variables: List[EnvironmentVariable] = variables
 
     @property
-    def variables(self):
+    def variables(self) -> List[EnvironmentVariable]:
         """
         Returns
         -------
@@ -242,7 +279,7 @@ class ADDInstruction(Instruction):
         self.__destinations: List[Filepath] = destinations
 
     @property
-    def source(self):
+    def source(self) -> Filepath:
         """
         Returns
         -------
@@ -252,7 +289,7 @@ class ADDInstruction(Instruction):
         return self.__source
 
     @property
-    def destinations(self):
+    def destinations(self) -> List[Filepath]:
         """
         Returns
         -------
@@ -303,7 +340,7 @@ class COPYInstruction(Instruction):
         self.__destinations: List[Filepath] = destinations
 
     @property
-    def source(self):
+    def source(self) -> Filepath:
         """
         Returns
         -------
@@ -313,7 +350,7 @@ class COPYInstruction(Instruction):
         return self.__source
 
     @property
-    def destinations(self):
+    def destinations(self) -> List[Filepath]:
         """
         Returns
         -------
@@ -368,7 +405,7 @@ class VOLUMEInstruction(Instruction):
         self.__volumes: List[Filepath] = volumes
 
     @property
-    def volumes(self):
+    def volumes(self) -> List[Filepath]:
         """
 
         Returns
@@ -428,7 +465,7 @@ class WORKDIRInstruction(Instruction):
         self.__work_dir: Filepath = work_dir
 
     @property
-    def work_dir(self):
+    def work_dir(self) -> Filepath:
         """
 
         Returns
@@ -473,7 +510,7 @@ class ARGInstruction(Instruction):
         self.__variable: BuildTimeVariable = variable
 
     @property
-    def variable(self):
+    def variable(self) -> BuildTimeVariable:
         """
         Returns
         -------
@@ -517,7 +554,7 @@ class ONBUILDInstruction(Instruction):
         self.__param_instructions: List[Instruction] = param_instructions
 
     @property
-    def param_instructions(self):
+    def param_instructions(self) -> List[Instruction]:
         """
         Returns
         -------
@@ -536,13 +573,49 @@ class ONBUILDInstruction(Instruction):
 
 
 class STOPSIGNALInstruction(Instruction):
-    # TODO: Need to implement
-    def __init__(self, line_num: int, raw_code: str):
-        super(STOPSIGNALInstruction, self).__init__(line_num, raw_code)
+    """
+    A node of STOPSIGNAL Instruction.
 
+    Attributes
+    ----------
+    __signal : SystemCallSignal
+        System call signal declared by this STOPSIGNAL Instruction.
     """
-    STOPSIGNAL signal
-    """
+    __REPR_FORMAT: str = "{0}(signal={1}, line_num={2}, raw_code={3})"
+
+    def __init__(self, signal: SystemCallSignal, line_num: int, raw_code: str):
+        """
+        Parameters
+        ----------
+        signal : SystemCallSignal
+            System call signal declared by this STOPSIGNAL Instruction.
+        line_num : int
+            Line number of this STOPSIGNAL Instruction.
+        raw_code : str
+            Original Dockerfile source code.
+        """
+        super(STOPSIGNALInstruction, self).__init__(line_num, raw_code)
+        self.__signal: SystemCallSignal = signal
+
+    @property
+    def signal(self) -> SystemCallSignal:
+        """
+        Returns
+        -------
+        __signal : SystemCallSignal
+            System call signal declared by this STOPSIGNAL Instruction.
+        """
+        return self.__signal
+
+    def __repr__(self):
+        self_class_name = self.__class__.__name__
+        repr_signal = repr(self.__signal)
+        repr_line_num = repr(self.line_num)
+        repr_raw_code = repr(self.raw_code)
+        return self.__REPR_FORMAT.format(self_class_name, repr_signal, repr_line_num, repr_raw_code)
+
+    def __str__(self):
+        return self.raw_code
 
 
 class HEALTHCHECKInstruction(Instruction):
@@ -561,6 +634,8 @@ class HEALTHCHECKInstruction(Instruction):
         Dockerfile Instructions as parameters of HEALTHCHECK Instruction.
         HEALTHCHECK Instruction has only CMD Instruction or "NONE."
     """
+    __REPR_FORMAT: str = "{0}(param_instructions={1}, line_num={2}, raw_code={3})"
+
     def __init__(self, param_instructions: List[Instruction], line_num: int, raw_code: str):
         """
         Parameters
@@ -577,7 +652,7 @@ class HEALTHCHECKInstruction(Instruction):
         self.__param_instructions: List[Instruction] = param_instructions
 
     @property
-    def param_instructions(self):
+    def param_instructions(self) -> List[Instruction]:
         """
         Returns
         -------

@@ -9,11 +9,13 @@ import dockerfile_ast.utils
 from dockerfile_ast import DockerfileAST, Instruction
 from dockerfile_ast.bash_parser import BashParser
 from dockerfile_ast.dockerfile_items.bash_items.nodes import BashValueNode
+from dockerfile_ast.dockerfile_items.bash_items.nodes import BuildTimeVariable
 from dockerfile_ast.dockerfile_items.bash_items.nodes import EnvironmentVariable
 from dockerfile_ast.dockerfile_items.bash_items.nodes import Filepath
-from dockerfile_ast.dockerfile_items.bash_items.nodes import BuildTimeVariable
+from dockerfile_ast.dockerfile_items.bash_items.nodes import SystemCallSignal
 import dockerfile_ast.dockerfile_items.bash_items.utils
 from dockerfile_ast.dockerfile_items.nodes import DockerLabel
+from dockerfile_ast.dockerfile_items.nodes import DockerPort
 from dockerfile_ast.dockerfile_items.instructions import FROMInstruction, RUNInstruction
 from dockerfile_ast.dockerfile_items.instructions import CMDInstruction
 from dockerfile_ast.dockerfile_items.instructions import LABELInstruction
@@ -131,7 +133,7 @@ class DockerfileParser:
             return self.__parse_copy_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.ENTRYPOINT:
             # ENTRYPOINT instruction
-            return self.__parse_expose_instruction(cst_instruction, line_num_offset)
+            return self.__parse_entrypoint_instruction(cst_instruction, line_num_offset)
         elif instruction_enum == InstructionEnum.VOLUME:
             # VOLUME instruction
             return self.__parse_volume_instruction(cst_instruction, line_num_offset)
@@ -235,15 +237,35 @@ class DockerfileParser:
 
     def __parse_expose_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[EXPOSEInstruction]:
-        # TODO: Need to implement
         line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
 
-        """
-        EXPOSE <port> [<port>/<protocol>...]
-        """
-
-        return [EXPOSEInstruction(line_num, raw_code)]
+        docker_ports: List[DockerPort] = list()
+        instructions: List[EXPOSEInstruction] = list()
+        for str_value in cst_instruction.value:
+            tokens: str = str_value.split("/")
+            if len(tokens) < 2:
+                port_num: BashValueNode = BashParser.simple_parse_bash_concat(
+                    str_value, self.__arg_variables, self.__env_variables
+                )
+                protocol = None
+                docker_ports.append(DockerPort(port_num, protocol))
+            elif len(tokens[1]) < 1:
+                _raise_go_parse_error("Protocol is not declared.", line_num, self.__filename)
+            else:
+                port_num: BashValueNode = BashParser.simple_parse_bash_concat(
+                    tokens[0], self.__arg_variables, self.__env_variables
+                )
+                protocol: BashValueNode = BashParser.simple_parse_bash_concat(
+                    tokens[1], self.__arg_variables, self.__env_variables
+                )
+                docker_ports.append(DockerPort(port_num, protocol))
+            if self.__separate_instructions:
+                instructions.append(EXPOSEInstruction(docker_ports, line_num, raw_code))
+                docker_ports.clear()
+        if not self.__separate_instructions:
+            instructions.append(EXPOSEInstruction(docker_ports, line_num, raw_code))
+        return instructions
 
     def __parse_env_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[ENVInstruction]:
@@ -282,7 +304,7 @@ class DockerfileParser:
 
     def __parse_copy_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[COPYInstruction]:
-        # Todo: Need to implement
+        # Todo: Need to implement parse options `--chown=<user>:<group>`
         line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
         source_filepath, destination_filepaths = _parse_source_and_destination_filepaths(
@@ -339,12 +361,10 @@ class DockerfileParser:
             -> List[WORKDIRInstruction]:
         line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
-        str_value: str = cst_instruction.value[0]
         value: BashValueNode = BashParser.simple_parse_bash_concat(
-            str_value, self.__arg_variables, self.__env_variables
+            cst_instruction.value[0], self.__arg_variables, self.__env_variables
         )
-        filepath: Filepath = Filepath(value)
-        return [WORKDIRInstruction(filepath, line_num, raw_code)]
+        return [WORKDIRInstruction(Filepath(value), line_num, raw_code)]
 
     def __parse_arg_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[ARGInstruction]:
@@ -353,11 +373,12 @@ class DockerfileParser:
 
         # '='がある場合とない場合で処理を分岐
         if len(cst_instruction.value) < 2:
-            split_tokens = cst_instruction.value[0].split("=")
-            variable_name = split_tokens[0]
-            if len(split_tokens) > 0:
+            tokens = cst_instruction.value[0].split("=")
+            self.__logger.debug(tokens)
+            variable_name = tokens[0]
+            if len(tokens) > 1:
                 # '='がある場合
-                str_value = split_tokens[1]
+                str_value = tokens[1]
             else:
                 # 変数名のみ定義されている場合
                 str_value = None
@@ -397,15 +418,12 @@ class DockerfileParser:
 
     def __parse_stopsignal_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[STOPSIGNALInstruction]:
-        # TODO: Need to implement
         line_num: int = cst_instruction.start_line + line_num_offset
         raw_code: str = cst_instruction.original
-
-        """
-        STOPSIGNAL signal
-        """
-
-        return [STOPSIGNALInstruction(line_num, raw_code)]
+        value: BashValueNode = BashParser.simple_parse_bash_concat(
+            cst_instruction.value[0], self.__arg_variables, self.__env_variables
+        )
+        return [STOPSIGNALInstruction(SystemCallSignal(value), line_num, raw_code)]
 
     def __parse_healthcheck_instruction(self, cst_instruction: dockerfile.Command, line_num_offset: int) \
             -> List[HEALTHCHECKInstruction]:
@@ -421,15 +439,17 @@ class DockerfileParser:
 
         HEALTHCHECK_SUB_COMMAND_ERROR_MESSAGE = "Sub command of HEALTHCHECK instruction is only \"None\" or \"CMD\"."
         try:
-            if InstructionEnum.of(cst_instruction.sub_cmd) != InstructionEnum.CMD:
+            sub_command: InstructionEnum = InstructionEnum.of(cst_instruction.value[0])
+            if sub_command != InstructionEnum.CMD:
                 # Sub command of HEALTHCHECK error
                 _raise_go_parse_error(HEALTHCHECK_SUB_COMMAND_ERROR_MESSAGE, line_num, self.__filename)
         except ValueError:
-            if not re.match(cst_instruction.sub_cmd, r"[Nn][Oo][Nn][Ee]"):
+            if not re.match(r"[Nn][Oo][Nn][Ee]", cst_instruction.value[0]):
                 _raise_go_parse_error(HEALTHCHECK_SUB_COMMAND_ERROR_MESSAGE, line_num, self.__filename)
-
         # Reformat parameters on HEALTHCHECK instruction
         param = re.sub(r"^[Hh][Ee][Aa][Ll][Tt][Hh][Cc][Hh][Ee][Cc][Kk]\s+", "", raw_code)
+        for flag in cst_instruction.flags:
+            param = re.sub(r"^\s*" + flag + r"\s*", "", param)
 
         # generate CST of an instruction this HEALTHCHECK instruction has as a parameter
         if re.match(r"[Nn][Oo][Nn][Ee]", param):
